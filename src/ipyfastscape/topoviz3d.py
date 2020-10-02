@@ -2,7 +2,7 @@ from typing import Optional
 
 import numpy as np
 import xarray as xr
-from ipygany import Component, IsoColor, PolyMesh, Scene, Warp
+from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
 from IPython.display import display
 from ipywidgets import (
     Accordion,
@@ -150,7 +150,7 @@ class TopoViz3d:
         self.isocolor = IsoColor(
             self.polymesh, input=('color', 'value'), min=elev_min, max=elev_max
         )
-        self.warp = Warp(self.isocolor, input=(0.0, 0.0, ('warp', 'value')), factor=1)
+        self.warp = WarpByScalar(self.isocolor, input='warp', factor=1)
 
         self.scene = Scene([self.warp], background_color=self._default_background_color)
 
