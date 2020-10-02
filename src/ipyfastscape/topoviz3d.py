@@ -146,7 +146,7 @@ class TopoViz3d:
 
         rescale_button = Button(
             description='Rescale',
-            tootip='Rescale to actual data range',
+            tooltip='Rescale to actual data range',
             layout=Layout(height='auto', width='auto'),
         )
         rescale_button.on_click(lambda _: update_coloring_range())
