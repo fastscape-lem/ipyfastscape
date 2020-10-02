@@ -1,0 +1,5 @@
+xarray
+numpy>=1.17
+ipygany
+ipywidgets
+ipython
