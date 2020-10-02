@@ -218,10 +218,21 @@ class TopoViz3d:
             width='100%', height=str(self._scene_height) + 'px', overflow='hidden'
         )
 
+        # header
+        header_elements = []
+
+        menu_button = ToggleButton(
+            value=True,
+            tooltip='Show/Hide sidebar',
+            icon='bars',
+            layout=Layout(width='50px', height='auto', margin='0 10px 0 0'),
+        )
+
+        header_elements.append(menu_button)
+
         if self.dataset._widgets.time_dim is not None:
             timesteps = self._get_timestep_widgets()
-        else:
-            timesteps = None
+            header_elements.append(timesteps)
 
         properties = VBox(self._get_properties_widgets())
 
@@ -234,21 +245,11 @@ class TopoViz3d:
             flex='0 0 auto',
         )
 
-        menu_button = ToggleButton(
-            value=True,
-            tooltip='Show/Hide sidebar',
-            icon='bars',
-            layout=Layout(width='50px', height='auto', margin='0 10px 0 0'),
-        )
-
-        header = HBox([menu_button, timesteps])
-        center = HBox([left_pane, self.scene])
-
         gui = AppLayout(
-            header=header,
+            header=HBox(header_elements),
             left_sidebar=None,
             right_sidebar=None,
-            center=center,
+            center=HBox([left_pane, self.scene]),
             footer=None,
             pane_heights=['30px', 3, 0],
             grid_gap='10px',
