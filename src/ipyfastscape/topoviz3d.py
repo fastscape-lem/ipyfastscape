@@ -1,6 +1,5 @@
 from typing import Optional
 
-import numpy as np
 import xarray as xr
 from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
 from IPython.display import display
@@ -14,16 +13,15 @@ from ipywidgets import (
     FloatText,
     GridspecLayout,
     HBox,
-    IntSlider,
     Label,
     Layout,
     Output,
-    Play,
     ToggleButton,
     VBox,
     jslink,
 )
 
+from .common import TimeStepper
 from .xr_accessor import WidgetsAccessor  # noqa: F401
 
 
@@ -38,6 +36,8 @@ class TopoViz3d:
         self.output.layout = Layout(
             height=str(self._scene_height + 10 + 30) + 'px',
         )
+
+        self.timestepper = None
 
         if len(args) == 1:
             self.load_dataset(args[0], **kwargs)
@@ -84,48 +84,12 @@ class TopoViz3d:
 
         self.scene = Scene([self.warp], background_color=self._default_background_color)
 
-    def _get_timestep_widgets(self):
-        nsteps = self.dataset._widgets.nsteps
+    def _update_scene_data_slice(self, _):
+        new_warp_array = self.dataset._widgets.current_elevation.values
+        self.polymesh[('warp', 'value')].array = new_warp_array
 
-        timestep_label = Label(self.dataset._widgets.current_time_str)
-        timestep_label.layout = Layout(width='150px')
-
-        def update_time(change):
-            self.dataset._widgets.timestep = change['new']
-
-            timestep_label.value = self.dataset._widgets.current_time_str
-            self.polymesh[('warp', 'value')].array = self.dataset._widgets.current_elevation.values
-            self.polymesh[('color', 'value')].array = self.dataset._widgets.current_color.values
-
-        timestep_slider = IntSlider(value=0, min=0, max=nsteps - 1, readout=False)
-        timestep_slider.observe(update_time, names='value')
-        timestep_slider.layout = Layout(width='auto', flex='3 1 0%')
-
-        timestep_play = Play(value=0, min=0, max=nsteps - 1, interval=100)
-
-        def update_speed(change):
-            speed_ms = int((520 + 500 * np.cos(change['new'] * np.pi / 50)) / 2)
-            timestep_play.interval = speed_ms
-
-        play_speed = IntSlider(value=30, min=0, max=50, readout=False)
-        play_speed.observe(update_speed, names='value')
-        play_speed.layout = Layout(width='auto', flex='1 1 0%')
-
-        jslink((timestep_play, 'value'), (timestep_slider, 'value'))
-
-        timestep_box = HBox(
-            [
-                timestep_play,
-                Label('slow/fast: '),
-                play_speed,
-                Label('steps: '),
-                timestep_slider,
-                timestep_label,
-            ]
-        )
-        timestep_box.layout = Layout(width='100%')
-
-        return timestep_box
+        new_color_array = self.dataset._widgets.current_color.values
+        self.polymesh[('color', 'value')].array = new_color_array
 
     def _get_coloring_widgets(self):
         da = self.dataset._widgets.color
@@ -231,8 +195,8 @@ class TopoViz3d:
         header_elements.append(menu_button)
 
         if self.dataset._widgets.time_dim is not None:
-            timesteps = self._get_timestep_widgets()
-            header_elements.append(timesteps)
+            self.timestepper = TimeStepper(self.dataset, self._update_scene_data_slice)
+            header_elements.append(self.timestepper.get_widget())
 
         properties = VBox(self._get_properties_widgets())
 
