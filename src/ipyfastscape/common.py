@@ -59,3 +59,10 @@ class TimeStepper(IpyFastscapeWidget):
     def _update_play_speed(self, change):
         speed_ms = int((520 + 500 * math.cos(change['new'] * math.pi / 50)) / 2)
         self.play.interval = speed_ms
+
+    def go_to_step(self, step):
+        self.slider.value = step
+
+    def go_to_time(self, time):
+        step = self.dataset._widgets.time_to_step(time)
+        self.slider.value = step

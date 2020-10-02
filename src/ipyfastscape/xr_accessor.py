@@ -66,6 +66,9 @@ class WidgetsAccessor:
 
         return self._nsteps
 
+    def time_to_step(self, time):
+        return self._dataset.indexes[self.time_dim].get_loc(time, method='nearest')
+
     @property
     def timestep(self):
         return self._timestep
