@@ -1,6 +1,6 @@
+import math
 from typing import Callable
 
-import numpy as np
 import xarray as xr
 from ipywidgets import HBox, IntSlider, Label, Layout, Play, jslink
 
@@ -57,5 +57,5 @@ class TimeStepper(IpyFastscapeWidget):
         self.update_step_func(change)
 
     def _update_play_speed(self, change):
-        speed_ms = int((520 + 500 * np.cos(change['new'] * np.pi / 50)) / 2)
+        speed_ms = int((520 + 500 * math.cos(change['new'] * math.pi / 50)) / 2)
         self.play.interval = speed_ms
