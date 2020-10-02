@@ -23,6 +23,8 @@ from ipywidgets import (
     jslink,
 )
 
+from .xr_accessor import WidgetsAccessor  # noqa: F401
+
 
 class TopoViz3d:
     def __init__(self, *args, height=600, **kwargs):
@@ -43,38 +45,6 @@ class TopoViz3d:
                 'too many arguments given to `TopoViz3d.__init__`, which accepts one xarray.Dataset'
             )
 
-    def _normalize_dataset(self, dataset: xr.Dataset) -> xr.Dataset:
-        if not isinstance(dataset, xr.Dataset):
-            raise TypeError(f'{dataset} is not a xarray.Dataset object')
-
-        if self.elevation_var not in dataset:
-            raise ValueError(f"variable '{self.elevation_var}' not found in Dataset")
-
-        elevation_da = dataset[self.elevation_var]
-        elevation_dims = set(elevation_da.dims)
-
-        if self.time is not None:
-            if self.time not in dataset.coords:
-                raise ValueError(f"coordinate '{self.time}' not found in Dataset")
-            if self.time not in elevation_dims:
-                raise ValueError(f"variable '{self.elevation_var}' has no '{self.time}' dimension")
-
-        if self.x_dim not in dataset.coords or self.y_dim not in dataset.coords:
-            raise ValueError(
-                f"coordinate(s) '{self.x_dim}' and/or '{self.y_dim}' missing in Dataset"
-            )
-
-        if self.x_dim not in elevation_dims or self.y_dim not in elevation_dims:
-            raise ValueError(
-                f"variable '{self.elevation_var}' has no '{self.x_dim}' or '{self.y_dim}' dimension"
-            )
-
-        selected_vars = [
-            vname for vname, var in dataset.data_vars.items() if set(var.dims) == elevation_dims
-        ]
-
-        return dataset[selected_vars]
-
     def load_dataset(
         self,
         dataset: xr.Dataset,
@@ -83,68 +53,27 @@ class TopoViz3d:
         elevation_var: str = 'topography__elevation',
         time: Optional[str] = None,
     ):
-        self.x_dim = x
-        self.y_dim = y
-        self.elevation_var = elevation_var
-        self.color_var = elevation_var
-        self.time = time
-        self.timestep = 0
+        if not isinstance(dataset, xr.Dataset):
+            raise TypeError(f'{dataset} is not a xarray.Dataset object')
 
-        self.dataset = self._normalize_dataset(dataset)
+        # shallow copy of dataset to support multiple Viz instances from the same dataset
+        self.dataset = dataset.copy()
+        self.dataset._widgets(x=x, y=y, elevation_var=elevation_var, time=time)
+
         self._reset_gui()
 
-    def _get_mesh_geometry(self):
-        x = self.dataset[self.x_dim]
-        y = self.dataset[self.y_dim]
-
-        nr = len(y)
-        nc = len(x)
-
-        triangle_indices = np.empty((nr - 1, nc - 1, 2, 3), dtype='uint32')
-
-        r = np.arange(nr * nc).reshape(nr, nc)
-
-        triangle_indices[:, :, 0, 0] = r[:-1, :-1]
-        triangle_indices[:, :, 1, 0] = r[:-1, 1:]
-        triangle_indices[:, :, 0, 1] = r[:-1, 1:]
-
-        triangle_indices[:, :, 1, 1] = r[1:, 1:]
-        triangle_indices[:, :, :, 2] = r[1:, :-1, None]
-
-        triangle_indices.shape = (-1, 3)
-
-        xx, yy = np.meshgrid(x, y, sparse=True)
-
-        vertices = np.empty((nr, nc, 3))
-        vertices[:, :, 0] = xx
-        vertices[:, :, 1] = yy
-        vertices[:, :, 2] = np.zeros_like(xx)
-
-        vertices = vertices.reshape(nr * nc, 3)
-
-        return vertices, triangle_indices
-
     def _reset_scene(self):
-        if not len(self.dataset):
-            return
+        vertices, triangle_indices = self.dataset._widgets.to_unstructured_mesh()
 
-        vertices, triangle_indices = self._get_mesh_geometry()
-
-        elev_da = self.dataset[self.elevation_var]
+        elev_da = self.dataset._widgets.elevation
         elev_min = elev_da.min()
         elev_max = elev_da.max()
-
-        if self.time is None:
-            elev_arr = elev_da.values
-        else:
-            elev_arr = elev_da.isel(**{self.time: 0}).values
+        elev_arr = self.dataset._widgets.current_elevation.values
 
         data = {
             'color': [Component(name='value', array=elev_arr, min=elev_min, max=elev_max)],
             'warp': [Component(name='value', array=elev_arr, min=elev_min, max=elev_max)],
         }
-
-        self.color_var = self.elevation_var
 
         self.polymesh = PolyMesh(vertices=vertices, triangle_indices=triangle_indices, data=data)
         self.isocolor = IsoColor(
@@ -155,20 +84,17 @@ class TopoViz3d:
         self.scene = Scene([self.warp], background_color=self._default_background_color)
 
     def _get_timestep_widgets(self):
-        nsteps = len(self.dataset[self.time])
-        time_val0 = self.dataset[self.time].values[0]
+        nsteps = self.dataset._widgets.nsteps
 
-        timestep_label = Label(f'0 / {time_val0}')
+        timestep_label = Label(self.dataset._widgets.current_time_str)
         timestep_label.layout = Layout(width='150px')
 
         def update_time(change):
-            self.timestep = change['new']
-            ds_step = self.dataset.isel(**{self.time: self.timestep})
-            time_val = self.dataset[self.time].values[self.timestep]
+            self.dataset._widgets.timestep = change['new']
 
-            timestep_label.value = f'{self.timestep} / {time_val}'
-            self.polymesh[('warp', 'value')].array = ds_step[self.elevation_var].values
-            self.polymesh[('color', 'value')].array = ds_step[self.color_var].values
+            timestep_label.value = self.dataset._widgets.current_time_str
+            self.polymesh[('warp', 'value')].array = self.dataset._widgets.current_elevation.values
+            self.polymesh[('color', 'value')].array = self.dataset._widgets.current_color.values
 
         timestep_slider = IntSlider(value=0, min=0, max=nsteps - 1, readout=False)
         timestep_slider.observe(update_time, names='value')
@@ -201,19 +127,19 @@ class TopoViz3d:
         return timestep_box
 
     def _get_coloring_widgets(self):
-        elev_da = self.dataset[self.color_var]
+        da = self.dataset._widgets.color
 
-        clr_min_input = FloatText(value=elev_da.min(), layout=Layout(height='auto', width='auto'))
-        clr_max_input = FloatText(value=elev_da.max(), layout=Layout(height='auto', width='auto'))
+        clr_min_input = FloatText(value=da.min(), layout=Layout(height='auto', width='auto'))
+        clr_max_input = FloatText(value=da.max(), layout=Layout(height='auto', width='auto'))
 
         jslink((clr_min_input, 'value'), (self.isocolor, 'min'))
         jslink((clr_max_input, 'value'), (self.isocolor, 'max'))
 
         def update_coloring_range(step=False):
-            da = self.dataset[self.color_var]
-
             if step:
-                da = da.isel(**{self.time: self.timestep})
+                da = self.dataset._widgets.current_color
+            else:
+                da = self.dataset._widgets.color
 
             self.isocolor.min = da.min()
             self.isocolor.max = da.max()
@@ -236,25 +162,20 @@ class TopoViz3d:
         range_grid[0, 0] = clr_min_input
         range_grid[0, 1] = clr_max_input
         range_grid[1, 0] = rescale_button
-        if self.time is not None:
+        if self.dataset._widgets.time_dim is not None:
             range_grid[1, 1] = rescale_button_step
 
         def change_coloring_var(change):
-            self.color_var = change['new']
-            new_da = self.dataset[self.color_var]
-
-            if self.time is None:
-                new_arr = new_da.values
-            else:
-                new_arr = new_da.isel(**{self.time: self.timestep}).values
+            self.dataset._widgets.color_var = change['new']
 
             with self.scene.hold_sync():
-                self.polymesh[('color', 'value')].array = new_arr
+                self.polymesh[('color', 'value')].array = self.dataset._widgets.current_color
                 update_coloring_range()
 
         if len(self.dataset):
             coloring_dropdown = Dropdown(
-                value=self.elevation_var, options=list(self.dataset.data_vars)
+                value=self.dataset._widgets.elevation_var,
+                options=list(self.dataset._widgets.data_vars),
             )
         else:
             coloring_dropdown = Dropdown(options=[])
@@ -296,7 +217,7 @@ class TopoViz3d:
             width='auto', height=str(self._scene_height) + 'px', overflow='hidden'
         )
 
-        if self.time is not None:
+        if self.dataset._widgets.time_dim is not None:
             timesteps = self._get_timestep_widgets()
             timesteps.layout = Layout(margin='0 0 0 400px')
         else:
