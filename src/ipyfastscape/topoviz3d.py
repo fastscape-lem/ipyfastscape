@@ -19,6 +19,7 @@ from ipywidgets import (
     Layout,
     Output,
     Play,
+    ToggleButton,
     VBox,
     jslink,
 )
@@ -214,12 +215,11 @@ class TopoViz3d:
 
         self._reset_scene()
         self.scene.layout = Layout(
-            width='auto', height=str(self._scene_height) + 'px', overflow='hidden'
+            width='100%', height=str(self._scene_height) + 'px', overflow='hidden'
         )
 
         if self.dataset._widgets.time_dim is not None:
             timesteps = self._get_timestep_widgets()
-            timesteps.layout = Layout(margin='0 0 0 400px')
         else:
             timesteps = None
 
@@ -227,20 +227,51 @@ class TopoViz3d:
 
         left_pane = Accordion([properties])
         left_pane.set_title(0, 'Display properties')
-        left_pane.layout = Layout(width='auto', height='95%')
+        left_pane.layout = Layout(
+            width='400px',
+            height='95%',
+            margin='0 10px 0 0',
+            flex='0 0 auto',
+        )
+
+        menu_button = ToggleButton(
+            value=True,
+            tooltip='Show/Hide sidebar',
+            icon='bars',
+            layout=Layout(width='50px', height='auto', margin='0 10px 0 0'),
+        )
+
+        header = HBox([menu_button, timesteps])
+        center = HBox([left_pane, self.scene])
 
         gui = AppLayout(
-            header=timesteps,
-            left_sidebar=left_pane,
-            right_sidebar=self.scene,
-            center=None,
+            header=header,
+            left_sidebar=None,
+            right_sidebar=None,
+            center=center,
             footer=None,
-            pane_widths=['400px', 0, 3],
             pane_heights=['30px', 3, 0],
             grid_gap='10px',
             width='100%',
             overflow='hidden',
         )
+
+        def scene_resize():
+            # TODO: ipygany proper scene canvas resizing
+            # the workaround below is a hack (force change with before back to 100%)
+            with self.scene.hold_sync():
+                self.scene.layout.width = 'auto'
+                self.scene.layout.width = '100%'
+
+        def toggle_left_pane(change):
+            if change['new']:
+                left_pane.layout.display = 'block'
+                scene_resize()
+            else:
+                left_pane.layout.display = 'none'
+                scene_resize()
+
+        menu_button.observe(toggle_left_pane, names='value')
 
         with self.output:
             display(gui)
