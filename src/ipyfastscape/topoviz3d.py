@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import xarray as xr
 from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
@@ -6,12 +6,8 @@ from IPython.display import display
 from ipywidgets import (
     Accordion,
     AppLayout,
-    Button,
     ColorPicker,
-    Dropdown,
     FloatSlider,
-    FloatText,
-    GridspecLayout,
     HBox,
     Label,
     Layout,
@@ -21,23 +17,24 @@ from ipywidgets import (
     jslink,
 )
 
-from .common import TimeStepper
+from .common import Coloring, TimeStepper
 from .xr_accessor import WidgetsAccessor  # noqa: F401
 
 
 class TopoViz3d:
-    def __init__(self, *args, height=600, **kwargs):
+    def __init__(self, *args, canvas_height=600, **kwargs):
 
+        self._canvas_height = int(canvas_height)
+        # add grid gap + app header
+        self._output_height = self._canvas_height + 10 + 30
         self._default_background_color = '#969BAA'
-        self._scene_height = int(height)
-        self.scene = Scene([], background_color=self._default_background_color)
+        self.canvas = Scene([], background_color=self._default_background_color)
 
         self.output = Output()
-        self.output.layout = Layout(
-            height=str(self._scene_height + 10 + 30) + 'px',
-        )
+        self.output.layout = Layout(height=str(self._output_height) + 'px')
 
         self.timestepper = None
+        self.coloring = None
 
         if len(args) == 1:
             self.load_dataset(args[0], **kwargs)
@@ -61,9 +58,9 @@ class TopoViz3d:
         self.dataset = dataset.copy()
         self.dataset._widgets(x=x, y=y, elevation_var=elevation_var, time=time)
 
-        self._reset_gui()
+        self.reset_app()
 
-    def _reset_scene(self):
+    def reset_canvas(self):
         vertices, triangle_indices = self.dataset._widgets.to_unstructured_mesh()
 
         elev_da = self.dataset._widgets.elevation
@@ -82,74 +79,27 @@ class TopoViz3d:
         )
         self.warp = WarpByScalar(self.isocolor, input='warp', factor=1)
 
-        self.scene = Scene([self.warp], background_color=self._default_background_color)
+        self.canvas = Scene([self.warp], background_color=self._default_background_color)
 
-    def _update_scene_data_slice(self, _):
+    def _update_scene_data_slice(self):
         new_warp_array = self.dataset._widgets.current_elevation.values
         self.polymesh[('warp', 'value')].array = new_warp_array
 
         new_color_array = self.dataset._widgets.current_color.values
         self.polymesh[('color', 'value')].array = new_color_array
 
-    def _get_coloring_widgets(self):
-        da = self.dataset._widgets.color
+    def _update_scene_color_var(self):
+        self.polymesh[('color', 'value')].array = self.dataset._widgets.current_color
 
-        clr_min_input = FloatText(value=da.min(), layout=Layout(height='auto', width='auto'))
-        clr_max_input = FloatText(value=da.max(), layout=Layout(height='auto', width='auto'))
+    def _update_scene_color_range(self, da):
+        self.isocolor.min = da.min()
+        self.isocolor.max = da.max()
 
-        jslink((clr_min_input, 'value'), (self.isocolor, 'min'))
-        jslink((clr_max_input, 'value'), (self.isocolor, 'max'))
-
-        def update_coloring_range(step=False):
-            if step:
-                da = self.dataset._widgets.current_color
-            else:
-                da = self.dataset._widgets.color
-
-            self.isocolor.min = da.min()
-            self.isocolor.max = da.max()
-
-        rescale_button = Button(
-            description='Rescale',
-            tooltip='Rescale to actual data range',
-            layout=Layout(height='auto', width='auto'),
-        )
-        rescale_button.on_click(lambda _: update_coloring_range())
-
-        rescale_button_step = Button(
-            description='Rescale Step',
-            tooltip='Rescale to actual data range (current step only)',
-            layout=Layout(height='auto', width='auto'),
-        )
-        rescale_button_step.on_click(lambda _: update_coloring_range(step=True))
-
-        range_grid = GridspecLayout(2, 2)
-        range_grid[0, 0] = clr_min_input
-        range_grid[0, 1] = clr_max_input
-        range_grid[1, 0] = rescale_button
-        if self.dataset._widgets.time_dim is not None:
-            range_grid[1, 1] = rescale_button_step
-
-        def change_coloring_var(change):
-            self.dataset._widgets.color_var = change['new']
-
-            with self.scene.hold_sync():
-                self.polymesh[('color', 'value')].array = self.dataset._widgets.current_color
-                update_coloring_range()
-
-        if len(self.dataset):
-            coloring_dropdown = Dropdown(
-                value=self.dataset._widgets.elevation_var,
-                options=list(self.dataset._widgets.data_vars),
-            )
-        else:
-            coloring_dropdown = Dropdown(options=[])
-
-        coloring_dropdown.observe(change_coloring_var, names='value')
-
+    @property
+    def links(self) -> List[Tuple[Tuple, Tuple]]:
         return [
-            VBox([Label('Coloring:'), coloring_dropdown]),
-            VBox([Label('Color range:'), range_grid]),
+            ((self.coloring.min_input, 'value'), (self.isocolor, 'min')),
+            ((self.coloring.max_input, 'value'), (self.isocolor, 'max')),
         ]
 
     def _get_vertical_exaggeration_widget(self):
@@ -162,24 +112,24 @@ class TopoViz3d:
         return VBox([Label('Vertical exaggeration:'), warp_slider])
 
     def _get_background_color_widget(self):
-        clr_pick = ColorPicker(concise=True, value=self.scene.background_color)
+        clr_pick = ColorPicker(concise=True, value=self.canvas.background_color)
 
-        jslink((clr_pick, 'value'), (self.scene, 'background_color'))
+        jslink((clr_pick, 'value'), (self.canvas, 'background_color'))
 
         return VBox([Label('Background color: '), clr_pick])
 
     def _get_properties_widgets(self):
-        return self._get_coloring_widgets() + [
+        return [
             self._get_vertical_exaggeration_widget(),
             self._get_background_color_widget(),
         ]
 
-    def _reset_gui(self):
+    def reset_app(self):
         self.output.clear_output()
 
-        self._reset_scene()
-        self.scene.layout = Layout(
-            width='100%', height=str(self._scene_height) + 'px', overflow='hidden'
+        self.reset_canvas()
+        self.canvas.layout = Layout(
+            width='100%', height=str(self._canvas_height) + 'px', overflow='hidden'
         )
 
         # header
@@ -194,11 +144,21 @@ class TopoViz3d:
 
         header_elements.append(menu_button)
 
+        # left pane
         if self.dataset._widgets.time_dim is not None:
-            self.timestepper = TimeStepper(self.dataset, self._update_scene_data_slice)
-            header_elements.append(self.timestepper.get_widget())
+            self.timestepper = TimeStepper(self.dataset, self.canvas, self._update_scene_data_slice)
+            header_elements.append(self.timestepper.widget)
 
-        properties = VBox(self._get_properties_widgets())
+        self.coloring = Coloring(
+            self.dataset, self.canvas, self._update_scene_color_var, self._update_scene_color_range
+        )
+
+        properties_elements = [
+            self.coloring.widget,
+            self._get_vertical_exaggeration_widget(),
+            self._get_background_color_widget(),
+        ]
+        properties = VBox(properties_elements)
 
         left_pane = Accordion([properties])
         left_pane.set_title(0, 'Display properties')
@@ -209,11 +169,12 @@ class TopoViz3d:
             flex='0 0 auto',
         )
 
-        gui = AppLayout(
+        # app
+        app = AppLayout(
             header=HBox(header_elements),
             left_sidebar=None,
             right_sidebar=None,
-            center=HBox([left_pane, self.scene]),
+            center=HBox([left_pane, self.canvas]),
             footer=None,
             pane_heights=['30px', 3, 0],
             grid_gap='10px',
@@ -224,9 +185,9 @@ class TopoViz3d:
         def scene_resize():
             # TODO: ipygany proper scene canvas resizing
             # the workaround below is a hack (force change with before back to 100%)
-            with self.scene.hold_sync():
-                self.scene.layout.width = 'auto'
-                self.scene.layout.width = '100%'
+            with self.canvas.hold_sync():
+                self.canvas.layout.width = 'auto'
+                self.canvas.layout.width = '100%'
 
         def toggle_left_pane(change):
             if change['new']:
@@ -238,8 +199,11 @@ class TopoViz3d:
 
         menu_button.observe(toggle_left_pane, names='value')
 
+        for widgets in self.links:
+            jslink(*widgets)
+
         with self.output:
-            display(gui)
+            display(app)
 
     def show(self):
         display(self.output)
