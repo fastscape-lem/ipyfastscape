@@ -146,12 +146,13 @@ class TopoViz3d:
 
         # left pane
         if self.dataset._widgets.time_dim is not None:
-            self.timestepper = TimeStepper(self.dataset, self.canvas, self._update_scene_data_slice)
+            self.timestepper = TimeStepper(self.dataset, self.canvas)
+            self.timestepper.update_step_func = self._update_scene_data_slice
             header_elements.append(self.timestepper.widget)
 
-        self.coloring = Coloring(
-            self.dataset, self.canvas, self._update_scene_color_var, self._update_scene_color_range
-        )
+        self.coloring = Coloring(self.dataset, self.canvas)
+        self.coloring.update_var_func = self._update_scene_color_var
+        self.coloring.update_range_func = self._update_scene_color_range
 
         properties_elements = [
             self.coloring.widget,

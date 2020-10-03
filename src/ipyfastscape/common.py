@@ -1,9 +1,9 @@
 import math
-from typing import Any, Callable
 
 import xarray as xr
 from ipywidgets import (
     Button,
+    DOMWidget,
     Dropdown,
     FloatText,
     GridspecLayout,
@@ -20,22 +20,27 @@ from .xr_accessor import WidgetsAccessor  # noqa: F401
 
 
 class IpyFastscapeWidget:
-    def __init__(self, dataset: xr.Dataset, canvas: Any):
+    def __init__(self, dataset: xr.Dataset, canvas: DOMWidget):
         self.dataset = dataset
         self.canvas = canvas
         self._widget = None
 
+    def setup(self):
+        raise NotImplementedError()
+
     @property
     def widget(self):
+        if self._widget is None:
+            self._widget = self.setup()
         return self._widget
 
 
 class TimeStepper(IpyFastscapeWidget):
-    def __init__(self, dataset: xr.Dataset, canvas: Any, update_step_func: Callable):
-        super().__init__(dataset, canvas)
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.update_step_func = None
 
-        self.update_step_func = update_step_func
-
+    def setup(self):
         nsteps = self.dataset._widgets.nsteps
 
         self.label = Label(self.dataset._widgets.current_time_str)
@@ -53,7 +58,7 @@ class TimeStepper(IpyFastscapeWidget):
 
         jslink((self.play, 'value'), (self.slider, 'value'))
 
-        self._widget = HBox(
+        return HBox(
             [
                 self.play,
                 Label('slow/fast: '),
@@ -69,8 +74,9 @@ class TimeStepper(IpyFastscapeWidget):
         self.dataset._widgets.timestep = change['new']
         self.label.value = self.dataset._widgets.current_time_str
 
-        with self.canvas.hold_sync():
-            self.update_step_func()
+        if self.update_step_func is not None:
+            with self.canvas.hold_sync():
+                self.update_step_func()
 
     def _update_play_speed(self, change):
         speed_ms = int((520 + 500 * math.cos(change['new'] * math.pi / 50)) / 2)
@@ -85,18 +91,13 @@ class TimeStepper(IpyFastscapeWidget):
 
 
 class Coloring(IpyFastscapeWidget):
-    def __init__(
-        self,
-        dataset: xr.Dataset,
-        canvas: Any,
-        update_var_func: Callable,
-        update_range_func: Callable,
-    ):
-        super().__init__(dataset, canvas)
+    def __init__(self, *args):
+        super().__init__(*args)
 
-        self.update_var_func = update_var_func
-        self.update_range_func = update_range_func
+        self.update_var_func = None
+        self.update_range_func = None
 
+    def setup(self):
         self.var_dropdown = Dropdown(
             value=self.dataset._widgets.elevation_var,
             options=list(self.dataset._widgets.data_vars),
@@ -128,7 +129,7 @@ class Coloring(IpyFastscapeWidget):
         if self.dataset._widgets.time_dim is not None:
             range_grid[1, 1] = self.rescale_step_button
 
-        self._widget = VBox(
+        return VBox(
             [
                 Label('Coloring:'),
                 self.var_dropdown,
@@ -142,8 +143,10 @@ class Coloring(IpyFastscapeWidget):
         da = self.dataset._widgets.color
 
         with self.canvas.hold_sync():
-            self.update_var_func()
-            self.update_range_func(da)
+            if self.update_var_func is not None:
+                self.update_var_func()
+            if self.update_range_func is not None:
+                self.update_range_func(da)
 
     def _update_range(self, step=False):
         if step:
@@ -151,5 +154,6 @@ class Coloring(IpyFastscapeWidget):
         else:
             da = self.dataset._widgets.color
 
-        with self.canvas.hold_sync():
-            self.update_range_func(da)
+        if self.update_range_func is not None:
+            with self.canvas.hold_sync():
+                self.update_range_func(da)
