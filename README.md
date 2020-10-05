@@ -1,3 +1,5 @@
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/fastscape-lem/fastscape-demo/master?urlpath=lab/tree/ipyfastscape)
+
 # ipyfastscape
 
 Interactive widgets for topographic data analysis and modelling in Jupyter notebooks.
