@@ -1,7 +1,11 @@
 import math
+from typing import Callable, Dict, Optional
 
 import xarray as xr
+from IPython.display import display
 from ipywidgets import (
+    Accordion,
+    AppLayout,
     Button,
     DOMWidget,
     Dropdown,
@@ -11,7 +15,9 @@ from ipywidgets import (
     IntSlider,
     Label,
     Layout,
+    Output,
     Play,
+    ToggleButton,
     VBox,
     jslink,
 )
@@ -19,26 +25,31 @@ from ipywidgets import (
 from .xr_accessor import WidgetsAccessor  # noqa: F401
 
 
-class IpyFastscapeWidget:
+class AppComponent:
+    """Base class for ipyfastscape app components.
+
+    Subclasses need to implement the `.setup()` method, which must return a
+    widget (or container/layout widget).
+
+    """
+
     def __init__(self, dataset: xr.Dataset, canvas: DOMWidget):
         self.dataset = dataset
         self.canvas = canvas
-        self._widget = None
+        self._widget = self.setup()
 
-    def setup(self):
+    def setup(self) -> DOMWidget:
         raise NotImplementedError()
 
     @property
-    def widget(self):
-        if self._widget is None:
-            self._widget = self.setup()
+    def widget(self) -> DOMWidget:
         return self._widget
 
 
-class TimeStepper(IpyFastscapeWidget):
-    def __init__(self, *args):
+class TimeStepper(AppComponent):
+    def __init__(self, *args, canvas_callback: Callable = None):
+        self.canvas_callback = canvas_callback
         super().__init__(*args)
-        self.update_step_func = None
 
     def setup(self):
         nsteps = self.dataset._widgets.nsteps
@@ -74,9 +85,9 @@ class TimeStepper(IpyFastscapeWidget):
         self.dataset._widgets.timestep = change['new']
         self.label.value = self.dataset._widgets.current_time_str
 
-        if self.update_step_func is not None:
+        if self.canvas_callback is not None:
             with self.canvas.hold_sync():
-                self.update_step_func()
+                self.canvas_callback()
 
     def _update_play_speed(self, change):
         speed_ms = int((520 + 500 * math.cos(change['new'] * math.pi / 50)) / 2)
@@ -90,12 +101,13 @@ class TimeStepper(IpyFastscapeWidget):
         self.slider.value = step
 
 
-class Coloring(IpyFastscapeWidget):
-    def __init__(self, *args):
+class Coloring(AppComponent):
+    def __init__(
+        self, *args, canvas_callback_var: Callable = None, canvas_callback_range: Callable = None
+    ):
+        self.canvas_callback_var = canvas_callback_var
+        self.canvas_callback_range = canvas_callback_range
         super().__init__(*args)
-
-        self.update_var_func = None
-        self.update_range_func = None
 
     def setup(self):
         self.var_dropdown = Dropdown(
@@ -143,10 +155,10 @@ class Coloring(IpyFastscapeWidget):
         da = self.dataset._widgets.color
 
         with self.canvas.hold_sync():
-            if self.update_var_func is not None:
-                self.update_var_func()
-            if self.update_range_func is not None:
-                self.update_range_func(da)
+            if self.canvas_callback_var is not None:
+                self.canvas_callback_var()
+            if self.canvas_callback_range is not None:
+                self.canvas_callback_range(da)
 
     def _update_range(self, step=False):
         if step:
@@ -154,6 +166,137 @@ class Coloring(IpyFastscapeWidget):
         else:
             da = self.dataset._widgets.color
 
-        if self.update_range_func is not None:
+        if self.canvas_callback_range is not None:
             with self.canvas.hold_sync():
-                self.update_range_func(da)
+                self.canvas_callback_range(da)
+
+
+class VizApp:
+    """Base class for ipyfastscape's visualization apps."""
+
+    dataset: Optional[xr.Dataset]
+    canvas: Optional[DOMWidget]
+    timestepper: Optional[TimeStepper]
+    display_properties: Optional[Dict[str, AppComponent]]
+    output: Output
+
+    def __init__(self, dataset: xr.Dataset = None, canvas_height: int = 600, **kwargs):
+
+        self._canvas_height = int(canvas_height)
+        # add margin + header height
+        self._output_height = self._canvas_height + 10 + 30
+
+        self.canvas = None
+        self.timestepper = None
+        self.display_properties = None
+
+        self.output = Output(layout=Layout(height=str(self._output_height) + 'px'))
+
+        self.dataset = None
+
+        if dataset is not None:
+            self.load_dataset(dataset, **kwargs)
+
+    def load_dataset(
+        self,
+        dataset: xr.Dataset,
+        x: str = 'x',
+        y: str = 'y',
+        elevation_var: str = 'topography__elevation',
+        time: Optional[str] = None,
+    ):
+        if not isinstance(dataset, xr.Dataset):
+            raise TypeError(f'{dataset} is not a xarray.Dataset object')
+
+        # shallow copy of dataset to support multiple VizApp instances using the same dataset
+        self.dataset = dataset.copy()
+        self.dataset._widgets(x=x, y=y, elevation_var=elevation_var, time=time)
+
+        self.reset_app()
+
+    def _update_step(self):
+        pass
+
+    def _reset_canvas(self):
+        pass
+
+    def _reset_display_properties(self):
+        pass
+
+    def _resize_canvas(self):
+        # TODO: proper canvas resizing
+        # the workaround below is a hack (force change with before back to 100%)
+        with self.canvas.hold_sync():
+            self.canvas.layout.width = 'auto'
+            self.canvas.layout.width = '100%'
+
+    def reset_app(self):
+        self.output.clear_output()
+
+        self._reset_canvas()
+        self.canvas.layout = Layout(
+            width='100%',
+            height=str(self._canvas_height) + 'px',
+            overflow='hidden',
+            border='solid 1px #bbb',
+        )
+
+        # header
+        header_elements = []
+
+        menu_button = ToggleButton(
+            value=True,
+            tooltip='Show/Hide sidebar',
+            icon='bars',
+            layout=Layout(width='50px', height='auto', margin='0 10px 0 0'),
+        )
+
+        header_elements.append(menu_button)
+
+        if self.dataset._widgets.time_dim is not None:
+            self.timestepper = TimeStepper(
+                self.dataset, self.canvas, canvas_callback=self._update_step
+            )
+            header_elements.append(self.timestepper.widget)
+
+        # left pane
+        self._reset_display_properties()
+        display_properties_widgets = VBox([dp.widget for dp in self.display_properties.values()])
+
+        left_pane = Accordion([display_properties_widgets])
+        left_pane.set_title(0, 'Display properties')
+        left_pane.layout = Layout(
+            width='400px',
+            height='95%',
+            margin='0 10px 0 0',
+            flex='0 0 auto',
+        )
+
+        def toggle_left_pane(change):
+            if change['new']:
+                left_pane.layout.display = 'block'
+                self._resize_canvas()
+            else:
+                left_pane.layout.display = 'none'
+                self._resize_canvas()
+
+        menu_button.observe(toggle_left_pane, names='value')
+
+        # app
+        app = AppLayout(
+            header=HBox(header_elements),
+            left_sidebar=None,
+            right_sidebar=None,
+            center=HBox([left_pane, self.canvas]),
+            footer=None,
+            pane_heights=['30px', str(self._canvas_height) + 'px', 0],
+            grid_gap='10px',
+            width='100%',
+            overflow='hidden',
+        )
+
+        with self.output:
+            display(app)
+
+    def show(self):
+        display(self.output)

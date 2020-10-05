@@ -1,66 +1,38 @@
-from typing import List, Optional, Tuple
+from typing import Callable
 
-import xarray as xr
 from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
-from IPython.display import display
-from ipywidgets import (
-    Accordion,
-    AppLayout,
-    ColorPicker,
-    FloatSlider,
-    HBox,
-    Label,
-    Layout,
-    Output,
-    ToggleButton,
-    VBox,
-    jslink,
-)
+from ipywidgets import ColorPicker, FloatSlider, Label, VBox, jslink
 
-from .common import Coloring, TimeStepper
+from .common import AppComponent, Coloring, VizApp
 from .xr_accessor import WidgetsAccessor  # noqa: F401
 
 
-class TopoViz3d:
-    def __init__(self, *args, canvas_height=600, **kwargs):
+class VerticalExaggeration(AppComponent):
+    def __init__(self, *args, canvas_callback: Callable = None):
+        self.canvas_callback = canvas_callback
+        super().__init__(*args)
 
-        self._canvas_height = int(canvas_height)
-        # add grid gap + app header
-        self._output_height = self._canvas_height + 10 + 30
-        self._default_background_color = '#969BAA'
-        self.canvas = Scene([], background_color=self._default_background_color)
+    def setup(self):
+        self.slider = FloatSlider(value=1.0, min=0.0, max=20.0, step=0.1)
+        self.slider.observe(self.canvas_callback, names='value')
 
-        self.output = Output()
-        self.output.layout = Layout(height=str(self._output_height) + 'px')
+        return VBox([Label('Vertical exaggeration:'), self.slider])
 
-        self.timestepper = None
-        self.coloring = None
 
-        if len(args) == 1:
-            self.load_dataset(args[0], **kwargs)
-        elif len(args) > 1:
-            raise ValueError(
-                'too many arguments given to `TopoViz3d.__init__`, which accepts one xarray.Dataset'
-            )
+class BackgroundColor(AppComponent):
+    def __init__(self, *args):
+        super().__init__(*args)
 
-    def load_dataset(
-        self,
-        dataset: xr.Dataset,
-        x: str = 'x',
-        y: str = 'y',
-        elevation_var: str = 'topography__elevation',
-        time: Optional[str] = None,
-    ):
-        if not isinstance(dataset, xr.Dataset):
-            raise TypeError(f'{dataset} is not a xarray.Dataset object')
+    def setup(self):
+        self.picker = ColorPicker(concise=True, value=self.canvas.background_color)
 
-        # shallow copy of dataset to support multiple Viz instances from the same dataset
-        self.dataset = dataset.copy()
-        self.dataset._widgets(x=x, y=y, elevation_var=elevation_var, time=time)
+        jslink((self.picker, 'value'), (self.canvas, 'background_color'))
 
-        self.reset_app()
+        return VBox([Label('Background color: '), self.picker])
 
-    def reset_canvas(self):
+
+class TopoViz3d(VizApp):
+    def _reset_canvas(self):
         vertices, triangle_indices = self.dataset._widgets.to_unstructured_mesh()
 
         elev_da = self.dataset._widgets.elevation
@@ -79,9 +51,9 @@ class TopoViz3d:
         )
         self.warp = WarpByScalar(self.isocolor, input='warp', factor=1)
 
-        self.canvas = Scene([self.warp], background_color=self._default_background_color)
+        self.canvas = Scene([self.warp])
 
-    def _update_scene_data_slice(self):
+    def _update_step(self):
         new_warp_array = self.dataset._widgets.current_elevation.values
         self.polymesh[('warp', 'value')].array = new_warp_array
 
@@ -95,116 +67,28 @@ class TopoViz3d:
         self.isocolor.min = da.min()
         self.isocolor.max = da.max()
 
-    @property
-    def links(self) -> List[Tuple[Tuple, Tuple]]:
-        return [
-            ((self.coloring.min_input, 'value'), (self.isocolor, 'min')),
-            ((self.coloring.max_input, 'value'), (self.isocolor, 'max')),
-        ]
+    def _update_warp_factor(self, change):
+        self.warp.factor = change['new']
 
-    def _get_vertical_exaggeration_widget(self):
-        def update_warp(change):
-            self.warp.factor = change['new']
+    def _reset_display_properties(self):
+        props = {}
 
-        warp_slider = FloatSlider(value=self.warp.factor, min=0.0, max=20.0, step=0.1)
-        warp_slider.observe(update_warp, names='value')
-
-        return VBox([Label('Vertical exaggeration:'), warp_slider])
-
-    def _get_background_color_widget(self):
-        clr_pick = ColorPicker(concise=True, value=self.canvas.background_color)
-
-        jslink((clr_pick, 'value'), (self.canvas, 'background_color'))
-
-        return VBox([Label('Background color: '), clr_pick])
-
-    def _get_properties_widgets(self):
-        return [
-            self._get_vertical_exaggeration_widget(),
-            self._get_background_color_widget(),
-        ]
-
-    def reset_app(self):
-        self.output.clear_output()
-
-        self.reset_canvas()
-        self.canvas.layout = Layout(
-            width='100%', height=str(self._canvas_height) + 'px', overflow='hidden'
+        coloring = Coloring(
+            self.dataset,
+            self.canvas,
+            canvas_callback_var=self._update_scene_color_var,
+            canvas_callback_range=self._update_scene_color_range,
         )
+        jslink((coloring.min_input, 'value'), (self.isocolor, 'min'))
+        jslink((coloring.max_input, 'value'), (self.isocolor, 'max'))
+        props['coloring'] = coloring
 
-        # header
-        header_elements = []
-
-        menu_button = ToggleButton(
-            value=True,
-            tooltip='Show/Hide sidebar',
-            icon='bars',
-            layout=Layout(width='50px', height='auto', margin='0 10px 0 0'),
+        vert_exag = VerticalExaggeration(
+            self.dataset, self.canvas, canvas_callback=self._update_warp_factor
         )
+        props['vertical_exaggeration'] = vert_exag
 
-        header_elements.append(menu_button)
+        bcolor = BackgroundColor(self.dataset, self.canvas)
+        props['background_color'] = bcolor
 
-        # left pane
-        if self.dataset._widgets.time_dim is not None:
-            self.timestepper = TimeStepper(self.dataset, self.canvas)
-            self.timestepper.update_step_func = self._update_scene_data_slice
-            header_elements.append(self.timestepper.widget)
-
-        self.coloring = Coloring(self.dataset, self.canvas)
-        self.coloring.update_var_func = self._update_scene_color_var
-        self.coloring.update_range_func = self._update_scene_color_range
-
-        properties_elements = [
-            self.coloring.widget,
-            self._get_vertical_exaggeration_widget(),
-            self._get_background_color_widget(),
-        ]
-        properties = VBox(properties_elements)
-
-        left_pane = Accordion([properties])
-        left_pane.set_title(0, 'Display properties')
-        left_pane.layout = Layout(
-            width='400px',
-            height='95%',
-            margin='0 10px 0 0',
-            flex='0 0 auto',
-        )
-
-        # app
-        app = AppLayout(
-            header=HBox(header_elements),
-            left_sidebar=None,
-            right_sidebar=None,
-            center=HBox([left_pane, self.canvas]),
-            footer=None,
-            pane_heights=['30px', 3, 0],
-            grid_gap='10px',
-            width='100%',
-            overflow='hidden',
-        )
-
-        def scene_resize():
-            # TODO: ipygany proper scene canvas resizing
-            # the workaround below is a hack (force change with before back to 100%)
-            with self.canvas.hold_sync():
-                self.canvas.layout.width = 'auto'
-                self.canvas.layout.width = '100%'
-
-        def toggle_left_pane(change):
-            if change['new']:
-                left_pane.layout.display = 'block'
-                scene_resize()
-            else:
-                left_pane.layout.display = 'none'
-                scene_resize()
-
-        menu_button.observe(toggle_left_pane, names='value')
-
-        for widgets in self.links:
-            jslink(*widgets)
-
-        with self.output:
-            display(app)
-
-    def show(self):
-        display(self.output)
+        self.display_properties = props
