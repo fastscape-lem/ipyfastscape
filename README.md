@@ -10,4 +10,4 @@ dataset or any model created with [xarray-simlab](https://github.com/benbovy/xar
 
 - `TopoViz3d`: 3D terrain visualization
 
-![TopoViz3d demo](https://user-images.githubusercontent.com/4160723/95081832-6cc00600-071a-11eb-8cef-f77b7e8d0cac.gif)
+![TopoViz3d demo](https://user-images.githubusercontent.com/4160723/95083363-b4e02800-071c-11eb-939d-463ebb8342a2.gif)
