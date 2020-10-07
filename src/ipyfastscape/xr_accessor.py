@@ -1,3 +1,5 @@
+from typing import Dict, Tuple
+
 import numpy as np
 import xarray as xr
 
@@ -9,7 +11,7 @@ class WidgetsAccessor:
 
     """
 
-    def __init__(self, dataset):
+    def __init__(self, dataset: xr.Dataset):
         self._dataset = dataset
 
         self._data_vars = None
@@ -18,7 +20,7 @@ class WidgetsAccessor:
         self._timestep = 0
         self._nsteps = None
 
-    def __call__(self, x='x', y='y', time=None, elevation_var='topography__elevation'):
+    def __call__(self, x_dim='x', y_dim='y', time_dim=None, elevation_var='topography__elevation'):
 
         if elevation_var not in self._dataset:
             raise ValueError(f"variable '{elevation_var}' not found in Dataset")
@@ -26,29 +28,29 @@ class WidgetsAccessor:
         elevation_da = self._dataset[elevation_var]
         elevation_dims = set(elevation_da.dims)
 
-        if time is not None:
-            if time not in self._dataset.coords:
-                raise ValueError(f"coordinate '{time}' not found in Dataset")
-            if time not in elevation_dims:
-                raise ValueError(f"variable '{elevation_var}' has no '{time}' dimension")
+        if time_dim is not None:
+            if time_dim not in self._dataset.coords:
+                raise ValueError(f"coordinate '{time_dim}' not found in Dataset")
+            if time_dim not in elevation_dims:
+                raise ValueError(f"variable '{elevation_var}' has no '{time_dim}' dimension")
 
-        if x not in self._dataset.coords or y not in self._dataset.coords:
-            raise ValueError(f"coordinate(s) '{x}' and/or '{y}' missing in Dataset")
+        if x_dim not in self._dataset.coords or y_dim not in self._dataset.coords:
+            raise ValueError(f"coordinate(s) '{x_dim}' and/or '{y_dim}' missing in Dataset")
 
-        if x not in elevation_dims or y not in elevation_dims:
-            raise ValueError(f"variable '{elevation_var}' has no '{x}' or '{y}' dimension")
+        if x_dim not in elevation_dims or y_dim not in elevation_dims:
+            raise ValueError(f"variable '{elevation_var}' has no '{x_dim}' or '{y_dim}' dimension")
 
         self.elevation_var = elevation_var
         self.color_var = elevation_var
-        self.x_dim = x
-        self.y_dim = y
+        self.x_dim = x_dim
+        self.y_dim = y_dim
 
-        self.time_dim = time
+        self.time_dim = time_dim
 
         return self
 
     @property
-    def data_vars(self):
+    def data_vars(self) -> Dict[str, xr.DataArray]:
         if self._data_vars is None:
             dims = set(self._dataset[self.elevation_var].dims)
             self._data_vars = {
@@ -57,7 +59,7 @@ class WidgetsAccessor:
         return self._data_vars
 
     @property
-    def nsteps(self):
+    def nsteps(self) -> int:
         if self._nsteps is None:
             if self.time_dim is not None:
                 self._nsteps = len(self._dataset[self.time_dim])
@@ -70,22 +72,22 @@ class WidgetsAccessor:
         return self._dataset.indexes[self.time_dim].get_loc(time, method='nearest')
 
     @property
-    def timestep(self):
+    def timestep(self) -> int:
         return self._timestep
 
     @timestep.setter
-    def timestep(self, value):
+    def timestep(self, value: int):
         # remove current slice from cache
         self._current_slice = None
 
         self._timestep = value
 
     @property
-    def current_time_str(self):
+    def current_time_fmt(self) -> str:
         return f'{self.timestep} / {self.current_slice[self.time_dim].values}'
 
     @property
-    def current_slice(self):
+    def current_slice(self) -> xr.Dataset:
         if self._current_slice is None:
             sel_dict = {}
 
@@ -97,22 +99,22 @@ class WidgetsAccessor:
         return self._current_slice
 
     @property
-    def elevation(self):
+    def elevation(self) -> xr.DataArray:
         return self._dataset[self.elevation_var]
 
     @property
-    def color(self):
+    def color(self) -> xr.DataArray:
         return self._dataset[self.color_var]
 
     @property
-    def current_elevation(self):
+    def current_elevation(self) -> xr.DataArray:
         return self.current_slice[self.elevation_var]
 
     @property
-    def current_color(self):
+    def current_color(self) -> xr.DataArray:
         return self.current_slice[self.color_var]
 
-    def to_unstructured_mesh(self):
+    def to_unstructured_mesh(self) -> Tuple[np.ndarray, np.ndarray]:
         x = self._dataset[self.x_dim]
         y = self._dataset[self.y_dim]
 

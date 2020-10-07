@@ -1,26 +1,9 @@
 import math
 from typing import Callable, Dict, Optional
 
+import ipywidgets as widgets
 import xarray as xr
 from IPython.display import display
-from ipywidgets import (
-    Accordion,
-    AppLayout,
-    Button,
-    DOMWidget,
-    Dropdown,
-    FloatText,
-    GridspecLayout,
-    HBox,
-    IntSlider,
-    Label,
-    Layout,
-    Output,
-    Play,
-    ToggleButton,
-    VBox,
-    jslink,
-)
 
 from .xr_accessor import WidgetsAccessor  # noqa: F401
 
@@ -33,16 +16,16 @@ class AppComponent:
 
     """
 
-    def __init__(self, dataset: xr.Dataset, canvas: DOMWidget):
+    def __init__(self, dataset: xr.Dataset, canvas: widgets.DOMWidget):
         self.dataset = dataset
         self.canvas = canvas
         self._widget = self.setup()
 
-    def setup(self) -> DOMWidget:
+    def setup(self) -> widgets.DOMWidget:
         raise NotImplementedError()
 
     @property
-    def widget(self) -> DOMWidget:
+    def widget(self) -> widgets.DOMWidget:
         return self._widget
 
 
@@ -54,36 +37,36 @@ class TimeStepper(AppComponent):
     def setup(self):
         nsteps = self.dataset._widgets.nsteps
 
-        self.label = Label(self.dataset._widgets.current_time_str)
-        self.label.layout = Layout(width='150px')
+        self.label = widgets.Label(self.dataset._widgets.current_time_fmt)
+        self.label.layout = widgets.Layout(width='150px')
 
-        self.slider = IntSlider(value=0, min=0, max=nsteps - 1, readout=False)
-        self.slider.layout = Layout(width='auto', flex='3 1 0%')
+        self.slider = widgets.IntSlider(value=0, min=0, max=nsteps - 1, readout=False)
+        self.slider.layout = widgets.Layout(width='auto', flex='3 1 0%')
         self.slider.observe(self._update_time, names='value')
 
-        self.play = Play(value=0, min=0, max=nsteps - 1, interval=100)
+        self.play = widgets.Play(value=0, min=0, max=nsteps - 1, interval=100)
 
-        self.play_speed = IntSlider(value=30, min=0, max=50, readout=False)
-        self.play_speed.layout = Layout(width='auto', flex='1 1 0%')
+        self.play_speed = widgets.IntSlider(value=30, min=0, max=50, readout=False)
+        self.play_speed.layout = widgets.Layout(width='auto', flex='1 1 0%')
         self.play_speed.observe(self._update_play_speed, names='value')
 
-        jslink((self.play, 'value'), (self.slider, 'value'))
+        widgets.jslink((self.play, 'value'), (self.slider, 'value'))
 
-        return HBox(
+        return widgets.HBox(
             [
                 self.play,
-                Label('slow/fast: '),
+                widgets.Label('slow/fast: '),
                 self.play_speed,
-                Label('steps: '),
+                widgets.Label('steps: '),
                 self.slider,
                 self.label,
             ],
-            layout=Layout(width='100%'),
+            layout=widgets.Layout(width='100%'),
         )
 
     def _update_time(self, change):
         self.dataset._widgets.timestep = change['new']
-        self.label.value = self.dataset._widgets.current_time_str
+        self.label.value = self.dataset._widgets.current_time_fmt
 
         if self.canvas_callback is not None:
             with self.canvas.hold_sync():
@@ -110,42 +93,46 @@ class Coloring(AppComponent):
         super().__init__(*args)
 
     def setup(self):
-        self.var_dropdown = Dropdown(
+        self.var_dropdown = widgets.Dropdown(
             value=self.dataset._widgets.elevation_var,
             options=list(self.dataset._widgets.data_vars),
         )
         self.var_dropdown.observe(self._update_var, names='value')
 
         da = self.dataset._widgets.color
-        self.min_input = FloatText(value=da.min(), layout=Layout(height='auto', width='auto'))
-        self.max_input = FloatText(value=da.max(), layout=Layout(height='auto', width='auto'))
+        self.min_input = widgets.FloatText(
+            value=da.min(), layout=widgets.Layout(height='auto', width='auto')
+        )
+        self.max_input = widgets.FloatText(
+            value=da.max(), layout=widgets.Layout(height='auto', width='auto')
+        )
 
-        self.rescale_button = Button(
+        self.rescale_button = widgets.Button(
             description='Rescale',
             tooltip='Rescale to actual data range',
-            layout=Layout(height='auto', width='auto'),
+            layout=widgets.Layout(height='auto', width='auto'),
         )
         self.rescale_button.on_click(lambda _: self._update_range())
 
-        self.rescale_step_button = Button(
+        self.rescale_step_button = widgets.Button(
             description='Rescale Step',
             tooltip='Rescale to actual data range (current step)',
-            layout=Layout(height='auto', width='auto'),
+            layout=widgets.Layout(height='auto', width='auto'),
         )
         self.rescale_step_button.on_click(lambda _: self._update_range(step=True))
 
-        range_grid = GridspecLayout(2, 2)
+        range_grid = widgets.GridspecLayout(2, 2)
         range_grid[0, 0] = self.min_input
         range_grid[0, 1] = self.max_input
         range_grid[1, 0] = self.rescale_button
         if self.dataset._widgets.time_dim is not None:
             range_grid[1, 1] = self.rescale_step_button
 
-        return VBox(
+        return widgets.VBox(
             [
-                Label('Coloring:'),
+                widgets.Label('Coloring:'),
                 self.var_dropdown,
-                Label('Color range:'),
+                widgets.Label('Color range:'),
                 range_grid,
             ]
         )
@@ -175,10 +162,10 @@ class VizApp:
     """Base class for ipyfastscape's visualization apps."""
 
     dataset: Optional[xr.Dataset]
-    canvas: Optional[DOMWidget]
+    canvas: Optional[widgets.DOMWidget]
     timestepper: Optional[TimeStepper]
     display_properties: Optional[Dict[str, AppComponent]]
-    output: Output
+    output: widgets.Output
 
     def __init__(self, dataset: xr.Dataset = None, canvas_height: int = 600, **kwargs):
 
@@ -190,7 +177,7 @@ class VizApp:
         self.timestepper = None
         self.display_properties = None
 
-        self.output = Output(layout=Layout(height=str(self._output_height) + 'px'))
+        self.output = widgets.Output(layout=widgets.Layout(height=str(self._output_height) + 'px'))
 
         self.dataset = None
 
@@ -200,17 +187,19 @@ class VizApp:
     def load_dataset(
         self,
         dataset: xr.Dataset,
-        x: str = 'x',
-        y: str = 'y',
+        x_dim: str = 'x',
+        y_dim: str = 'y',
         elevation_var: str = 'topography__elevation',
-        time: Optional[str] = None,
+        time_dim: Optional[str] = None,
     ):
         if not isinstance(dataset, xr.Dataset):
             raise TypeError(f'{dataset} is not a xarray.Dataset object')
 
         # shallow copy of dataset to support multiple VizApp instances using the same dataset
         self.dataset = dataset.copy()
-        self.dataset._widgets(x=x, y=y, elevation_var=elevation_var, time=time)
+        self.dataset._widgets(
+            x_dim=x_dim, y_dim=y_dim, elevation_var=elevation_var, time_dim=time_dim
+        )
 
         self.reset_app()
 
@@ -234,7 +223,7 @@ class VizApp:
         self.output.clear_output()
 
         self._reset_canvas()
-        self.canvas.layout = Layout(
+        self.canvas.layout = widgets.Layout(
             width='100%',
             height=str(self._canvas_height) + 'px',
             overflow='hidden',
@@ -244,11 +233,11 @@ class VizApp:
         # header
         header_elements = []
 
-        menu_button = ToggleButton(
+        menu_button = widgets.ToggleButton(
             value=True,
             tooltip='Show/Hide sidebar',
             icon='bars',
-            layout=Layout(width='50px', height='auto', margin='0 10px 0 0'),
+            layout=widgets.Layout(width='50px', height='auto', margin='0 10px 0 0'),
         )
 
         header_elements.append(menu_button)
@@ -261,11 +250,13 @@ class VizApp:
 
         # left pane
         self._reset_display_properties()
-        display_properties_widgets = VBox([dp.widget for dp in self.display_properties.values()])
+        display_properties_widgets = widgets.VBox(
+            [dp.widget for dp in self.display_properties.values()]
+        )
 
-        left_pane = Accordion([display_properties_widgets])
+        left_pane = widgets.Accordion([display_properties_widgets])
         left_pane.set_title(0, 'Display properties')
-        left_pane.layout = Layout(
+        left_pane.layout = widgets.Layout(
             width='400px',
             height='95%',
             margin='0 10px 0 0',
@@ -283,11 +274,11 @@ class VizApp:
         menu_button.observe(toggle_left_pane, names='value')
 
         # app
-        app = AppLayout(
-            header=HBox(header_elements),
+        app = widgets.AppLayout(
+            header=widgets.HBox(header_elements),
             left_sidebar=None,
             right_sidebar=None,
-            center=HBox([left_pane, self.canvas]),
+            center=widgets.HBox([left_pane, self.canvas]),
             footer=None,
             pane_heights=['30px', str(self._canvas_height) + 'px', 0],
             grid_gap='10px',

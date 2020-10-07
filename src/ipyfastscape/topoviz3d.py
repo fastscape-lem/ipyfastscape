@@ -1,7 +1,7 @@
 from typing import Callable
 
+import ipywidgets as widgets
 from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
-from ipywidgets import ColorPicker, FloatSlider, Label, VBox, jslink
 
 from .common import AppComponent, Coloring, VizApp
 from .xr_accessor import WidgetsAccessor  # noqa: F401
@@ -13,10 +13,10 @@ class VerticalExaggeration(AppComponent):
         super().__init__(*args)
 
     def setup(self):
-        self.slider = FloatSlider(value=1.0, min=0.0, max=20.0, step=0.1)
+        self.slider = widgets.FloatSlider(value=1.0, min=0.0, max=20.0, step=0.1)
         self.slider.observe(self.canvas_callback, names='value')
 
-        return VBox([Label('Vertical exaggeration:'), self.slider])
+        return widgets.VBox([widgets.Label('Vertical exaggeration:'), self.slider])
 
 
 class BackgroundColor(AppComponent):
@@ -24,14 +24,17 @@ class BackgroundColor(AppComponent):
         super().__init__(*args)
 
     def setup(self):
-        self.picker = ColorPicker(concise=True, value=self.canvas.background_color)
+        self.picker = widgets.ColorPicker(concise=True, value=self.canvas.background_color)
 
-        jslink((self.picker, 'value'), (self.canvas, 'background_color'))
+        widgets.jslink((self.picker, 'value'), (self.canvas, 'background_color'))
 
-        return VBox([Label('Background color: '), self.picker])
+        return widgets.VBox([widgets.Label('Background color: '), self.picker])
 
 
 class TopoViz3d(VizApp):
+
+    canvas: Scene
+
     def _reset_canvas(self):
         vertices, triangle_indices = self.dataset._widgets.to_unstructured_mesh()
 
@@ -79,8 +82,8 @@ class TopoViz3d(VizApp):
             canvas_callback_var=self._update_scene_color_var,
             canvas_callback_range=self._update_scene_color_range,
         )
-        jslink((coloring.min_input, 'value'), (self.isocolor, 'min'))
-        jslink((coloring.max_input, 'value'), (self.isocolor, 'max'))
+        widgets.jslink((coloring.min_input, 'value'), (self.isocolor, 'min'))
+        widgets.jslink((coloring.max_input, 'value'), (self.isocolor, 'max'))
         props['coloring'] = coloring
 
         vert_exag = VerticalExaggeration(
