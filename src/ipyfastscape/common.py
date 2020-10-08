@@ -1,4 +1,5 @@
 import math
+from collections import defaultdict
 from typing import Callable, Dict, Optional
 
 import ipywidgets as widgets
@@ -29,6 +30,62 @@ class AppComponent:
         return self._widget
 
 
+class DimensionExplorer(AppComponent):
+    def __init__(self, *args, canvas_callback: Callable = None):
+        self.canvas_callback = canvas_callback
+        super().__init__(*args)
+
+    def setup(self):
+        self.sliders = {}
+        self.value_labels = defaultdict(list)
+        vbox_elements = []
+
+        extra_dims_names = self.dataset._widgets.extra_dims_names
+        extra_dims_sizes = self.dataset._widgets.extra_dims_sizes
+
+        for dim in self.dataset._widgets.extra_dims:
+
+            for n in extra_dims_names[dim]:
+                name_label = widgets.Label(f'{n}: ')
+                value_label = widgets.Label('')
+
+                self.value_labels[dim].append(value_label)
+                vbox_elements.append(widgets.HBox([name_label, value_label]))
+
+            slider = widgets.IntSlider(
+                value=0,
+                min=0,
+                max=extra_dims_sizes[dim] - 1,
+                readout=False,
+                continuous_update=False,
+            )
+            slider.layout = widgets.Layout(width='95%')
+            slider.observe(self._update_explorer)
+            self.sliders[dim] = slider
+            vbox_elements.append(slider)
+
+        self._update_value_labels()
+
+        return widgets.VBox(vbox_elements, layout=widgets.Layout(width='100%'))
+
+    def _update_value_labels(self):
+        extra_dims_fmt = self.dataset._widgets.extra_dims_fmt
+
+        for dim, labels in self.value_labels.items():
+            for lb, val in zip(labels, extra_dims_fmt[dim]):
+                lb.value = val
+
+    def _update_explorer(self, _):
+        new_positions = {dim: s.value for dim, s in self.sliders.items()}
+        self.dataset._widgets.update_extra_dims(new_positions)
+
+        self._update_value_labels()
+
+        if self.canvas_callback is not None:
+            with self.canvas.hold_sync():
+                self.canvas_callback()
+
+
 class TimeStepper(AppComponent):
     def __init__(self, *args, canvas_callback: Callable = None):
         self.canvas_callback = canvas_callback
@@ -42,7 +99,7 @@ class TimeStepper(AppComponent):
 
         self.slider = widgets.IntSlider(value=0, min=0, max=nsteps - 1, readout=False)
         self.slider.layout = widgets.Layout(width='auto', flex='3 1 0%')
-        self.slider.observe(self._update_time, names='value')
+        self.slider.observe(self._update_step, names='value')
 
         self.play = widgets.Play(value=0, min=0, max=nsteps - 1, interval=100)
 
@@ -64,7 +121,7 @@ class TimeStepper(AppComponent):
             layout=widgets.Layout(width='100%'),
         )
 
-    def _update_time(self, change):
+    def _update_step(self, change):
         self.dataset._widgets.timestep = change['new']
         self.label.value = self.dataset._widgets.current_time_fmt
 
@@ -246,12 +303,28 @@ class VizApp:
             header_elements.append(timestepper.widget)
 
         # left pane
+        accordion_elements = []
+        accordion_titles = []
+
+        if len(self.dataset._widgets.extra_dims):
+            dim_explorer = DimensionExplorer(
+                self.dataset, self.canvas, canvas_callback=self._update_step
+            )
+            self.app_components['dimensions'] = dim_explorer
+            accordion_elements.append(dim_explorer.widget)
+            accordion_titles.append('Dimensions')
+
         display_properties = self._get_display_properties()
         self.app_components.update(display_properties)
-        display_properties_widgets = widgets.VBox([dp.widget for dp in display_properties.values()])
+        display_properties_box = widgets.VBox([dp.widget for dp in display_properties.values()])
+        accordion_elements.append(display_properties_box)
+        accordion_titles.append('Display properties')
 
-        left_pane = widgets.Accordion([display_properties_widgets])
-        left_pane.set_title(0, 'Display properties')
+        left_pane = widgets.Accordion(accordion_elements)
+
+        for pos, title in enumerate(accordion_titles):
+            left_pane.set_title(pos, title)
+
         left_pane.layout = widgets.Layout(
             width='400px',
             height='95%',
