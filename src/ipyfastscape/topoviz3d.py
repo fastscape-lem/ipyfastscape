@@ -73,7 +73,7 @@ class TopoViz3d(VizApp):
     def _update_warp_factor(self, change):
         self.warp.factor = change['new']
 
-    def _reset_display_properties(self):
+    def _get_display_properties(self):
         props = {}
 
         coloring = Coloring(
@@ -94,4 +94,4 @@ class TopoViz3d(VizApp):
         bcolor = BackgroundColor(self.dataset, self.canvas)
         props['background_color'] = bcolor
 
-        self.display_properties = props
+        return props

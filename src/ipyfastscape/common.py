@@ -163,8 +163,7 @@ class VizApp:
 
     dataset: Optional[xr.Dataset]
     canvas: Optional[widgets.DOMWidget]
-    timestepper: Optional[TimeStepper]
-    display_properties: Optional[Dict[str, AppComponent]]
+    app_components: Dict[str, AppComponent]
     output: widgets.Output
 
     def __init__(self, dataset: xr.Dataset = None, canvas_height: int = 600, **kwargs):
@@ -174,8 +173,7 @@ class VizApp:
         self._output_height = self._canvas_height + 10 + 30
 
         self.canvas = None
-        self.timestepper = None
-        self.display_properties = None
+        self.app_components = {}
 
         self.output = widgets.Output(layout=widgets.Layout(height=str(self._output_height) + 'px'))
 
@@ -209,8 +207,8 @@ class VizApp:
     def _reset_canvas(self):
         pass
 
-    def _reset_display_properties(self):
-        pass
+    def _get_display_properties(self) -> Dict[str, AppComponent]:
+        return {}
 
     def _resize_canvas(self):
         # TODO: proper canvas resizing
@@ -243,16 +241,14 @@ class VizApp:
         header_elements.append(menu_button)
 
         if self.dataset._widgets.time_dim is not None:
-            self.timestepper = TimeStepper(
-                self.dataset, self.canvas, canvas_callback=self._update_step
-            )
-            header_elements.append(self.timestepper.widget)
+            timestepper = TimeStepper(self.dataset, self.canvas, canvas_callback=self._update_step)
+            self.app_components['timestepper'] = timestepper
+            header_elements.append(timestepper.widget)
 
         # left pane
-        self._reset_display_properties()
-        display_properties_widgets = widgets.VBox(
-            [dp.widget for dp in self.display_properties.values()]
-        )
+        display_properties = self._get_display_properties()
+        self.app_components.update(display_properties)
+        display_properties_widgets = widgets.VBox([dp.widget for dp in display_properties.values()])
 
         left_pane = widgets.Accordion([display_properties_widgets])
         left_pane.set_title(0, 'Display properties')
