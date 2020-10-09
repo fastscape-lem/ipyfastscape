@@ -1,6 +1,7 @@
 from typing import Callable
 
 import ipywidgets as widgets
+from ipydatawidgets import NDArrayWidget
 from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
 
 from .common import AppComponent, Coloring, VizApp
@@ -41,11 +42,13 @@ class TopoViz3d(VizApp):
         elev_da = self.dataset._widgets.elevation
         elev_min = elev_da.min()
         elev_max = elev_da.max()
-        elev_arr = self.dataset._widgets.current_elevation.values
+
+        self.warp_data = NDArrayWidget(self.dataset._widgets.current_elevation.values)
+        self.color_data = NDArrayWidget(self.dataset._widgets.current_color.values)
 
         data = {
-            'color': [Component(name='value', array=elev_arr, min=elev_min, max=elev_max)],
-            'warp': [Component(name='value', array=elev_arr, min=elev_min, max=elev_max)],
+            'color': [Component(name='value', array=self.color_data, min=elev_min, max=elev_max)],
+            'warp': [Component(name='value', array=self.warp_data, min=elev_min, max=elev_max)],
         }
 
         self.polymesh = PolyMesh(vertices=vertices, triangle_indices=triangle_indices, data=data)
@@ -54,17 +57,19 @@ class TopoViz3d(VizApp):
         )
         self.warp = WarpByScalar(self.isocolor, input='warp', factor=1)
 
+        # TODO: remove this when ipygany supports listening to NDArrayWidget.array changes
+        # see https://github.com/QuantStack/ipygany/issues/73
+        widgets.dlink((self.warp_data, 'array'), (self.polymesh[('warp', 'value')], 'array'))
+        widgets.dlink((self.color_data, 'array'), (self.polymesh[('color', 'value')], 'array'))
+
         self.canvas = Scene([self.warp])
 
     def _update_step(self):
-        new_warp_array = self.dataset._widgets.current_elevation.values
-        self.polymesh[('warp', 'value')].array = new_warp_array
-
-        new_color_array = self.dataset._widgets.current_color.values
-        self.polymesh[('color', 'value')].array = new_color_array
+        self.warp_data.array = self.dataset._widgets.current_elevation.values
+        self.color_data.array = self.dataset._widgets.current_color.values
 
     def _update_scene_color_var(self):
-        self.polymesh[('color', 'value')].array = self.dataset._widgets.current_color
+        self.color_data.array = self.dataset._widgets.current_color
 
     def _update_scene_color_range(self, da):
         self.isocolor.min = da.min()
