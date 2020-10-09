@@ -1,5 +1,6 @@
 xarray
 numpy>=1.17
 ipygany
+ipydatawidgets
 ipywidgets
 ipython
