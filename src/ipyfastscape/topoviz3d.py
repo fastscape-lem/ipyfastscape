@@ -8,6 +8,8 @@ from .xr_accessor import WidgetsAccessor  # noqa: F401
 
 
 class VerticalExaggeration(AppComponent):
+    name = 'Vert. Exaggeration'
+
     def __init__(self, *args, canvas_callback: Callable = None):
         self.canvas_callback = canvas_callback
         super().__init__(*args)
@@ -18,8 +20,15 @@ class VerticalExaggeration(AppComponent):
 
         return widgets.VBox([widgets.Label('Vertical exaggeration:'), self.slider])
 
+    @property
+    def linkable_traits(self):
+        return [(self.slider, 'value')]
+
 
 class BackgroundColor(AppComponent):
+    allow_link = False
+    name = 'Background Color'
+
     def __init__(self, *args):
         super().__init__(*args)
 

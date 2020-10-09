@@ -1,6 +1,6 @@
 import math
 from collections import defaultdict
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import ipywidgets as widgets
 import xarray as xr
@@ -17,6 +17,9 @@ class AppComponent:
 
     """
 
+    allow_link: bool = True
+    name: Optional[str] = None
+
     def __init__(self, dataset: xr.Dataset, canvas: widgets.DOMWidget):
         self.dataset = dataset
         self.canvas = canvas
@@ -29,8 +32,14 @@ class AppComponent:
     def widget(self) -> widgets.DOMWidget:
         return self._widget
 
+    @property
+    def linkable_traits(self) -> List[Tuple[widgets.Widget, str]]:
+        return []
+
 
 class DimensionExplorer(AppComponent):
+    name = 'Dimensions'
+
     def __init__(self, *args, canvas_callback: Callable = None):
         self.canvas_callback = canvas_callback
         super().__init__(*args)
@@ -68,6 +77,10 @@ class DimensionExplorer(AppComponent):
 
         return widgets.VBox(vbox_elements, layout=widgets.Layout(width='100%'))
 
+    @property
+    def linkable_traits(self):
+        return [(sl, 'value') for sl in self.sliders.values()]
+
     def _update_value_labels(self):
         extra_dims_fmt = self.dataset._widgets.extra_dims_fmt
 
@@ -87,6 +100,8 @@ class DimensionExplorer(AppComponent):
 
 
 class TimeStepper(AppComponent):
+    name = 'Steps'
+
     def __init__(self, *args, canvas_callback: Callable = None):
         self.canvas_callback = canvas_callback
         super().__init__(*args)
@@ -121,6 +136,10 @@ class TimeStepper(AppComponent):
             layout=widgets.Layout(width='100%'),
         )
 
+    @property
+    def linkable_traits(self):
+        return [(self.slider, 'value')]
+
     def _update_step(self, change):
         self.dataset._widgets.timestep = change['new']
         self.label.value = self.dataset._widgets.current_time_fmt
@@ -142,6 +161,8 @@ class TimeStepper(AppComponent):
 
 
 class Coloring(AppComponent):
+    name = 'Coloring'
+
     def __init__(
         self, *args, canvas_callback_var: Callable = None, canvas_callback_range: Callable = None
     ):
@@ -193,6 +214,10 @@ class Coloring(AppComponent):
                 range_grid,
             ]
         )
+
+    @property
+    def linkable_traits(self):
+        return [(self.var_dropdown, 'value')]
 
     def _update_var(self, change):
         self.dataset._widgets.color_var = change['new']
@@ -360,3 +385,19 @@ class VizApp:
 
     def show(self):
         display(self.output)
+
+
+class AppLinker:
+    def __init__(self, apps: List[VizApp]):
+        self._apps = apps
+
+        app_components = list(set().union(*[app.app_components for app in apps]))
+        layout = widgets.Layout(width='200px')
+
+        self.toggles = {
+            c: widgets.ToggleButton(value=False, description=f'Link {c}', layout=layout)
+            for c in app_components
+        }
+
+    def show(self):
+        return widgets.HBox(list(self.toggles.values()))
