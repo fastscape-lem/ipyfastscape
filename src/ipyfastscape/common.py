@@ -1,6 +1,6 @@
 import math
 from collections import defaultdict
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import ipywidgets as widgets
 import xarray as xr
@@ -138,7 +138,7 @@ class TimeStepper(AppComponent):
 
     @property
     def linkable_traits(self):
-        return [(self.slider, 'value')]
+        return [(self.slider, 'value'), (self.play, 'value'), (self.play_speed, 'value')]
 
     def _update_step(self, change):
         self.dataset._widgets.timestep = change['new']
@@ -161,6 +161,7 @@ class TimeStepper(AppComponent):
 
 
 class Coloring(AppComponent):
+    allow_link = False
     name = 'Coloring'
 
     def __init__(
@@ -214,10 +215,6 @@ class Coloring(AppComponent):
                 range_grid,
             ]
         )
-
-    @property
-    def linkable_traits(self):
-        return [(self.var_dropdown, 'value')]
 
     def _update_var(self, change):
         self.dataset._widgets.color_var = change['new']
@@ -387,17 +384,69 @@ class VizApp:
         display(self.output)
 
 
+def _linker_button_observe_factory(comp_objs: List[AppComponent]) -> Callable:
+    c0 = comp_objs[0]
+    comps = comp_objs[1:]
+
+    link_objs = []
+
+    def on_click(change):
+        if change['new']:
+            for c in comps:
+                for source, target in zip(c0.linkable_traits, c.linkable_traits):
+                    link = widgets.jslink(source, target)
+                    link_objs.append(link)
+        else:
+            for link in link_objs:
+                link.unlink()
+            link_objs.clear()
+
+    return on_click
+
+
+def _create_linker_button(apps: List[VizApp], comp_name: str) -> Union[widgets.ToggleButton, None]:
+    comp_objs = [app.app_components[comp_name] for app in apps]
+
+    comp_cls = type(comp_objs[0])
+    same_type = all([isinstance(obj, comp_cls) for obj in comp_objs])
+
+    if not comp_cls.allow_link or not same_type:
+        return None
+
+    layout = widgets.Layout(width='200px')
+    button = widgets.ToggleButton(value=False, description=f'Link {comp_cls.name}', layout=layout)
+    button.observe(_linker_button_observe_factory(comp_objs), names='value')
+
+    return button
+
+
 class AppLinker:
     def __init__(self, apps: List[VizApp]):
+
+        if not all([isinstance(app, VizApp) for app in apps]):
+            raise TypeError('`app` argument only accepts VizApp objects')
+
+        if len(apps) < 2:
+            raise ValueError('AppLinker works with at least two VizApp objects')
+
+        if len(set(apps)) < len(apps):
+            raise ValueError('AppLinker works with distinct VizApp objects')
+
         self._apps = apps
+        self._widget = self.setup()
 
-        app_components = list(set().union(*[app.app_components for app in apps]))
-        layout = widgets.Layout(width='200px')
+    def setup(self):
 
-        self.toggles = {
-            c: widgets.ToggleButton(value=False, description=f'Link {c}', layout=layout)
-            for c in app_components
-        }
+        app_components = set().union(*[app.app_components for app in self._apps])
+
+        buttons = [_create_linker_button(self._apps, comp_name) for comp_name in app_components]
+        self.buttons = [b for b in buttons if b is not None]
+
+        return widgets.HBox(self.buttons)
+
+    @property
+    def widget(self):
+        return self._widget
 
     def show(self):
-        return widgets.HBox(list(self.toggles.values()))
+        display(self.widget)
