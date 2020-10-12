@@ -16,4 +16,4 @@ dataset or any model created with [xarray-simlab](https://github.com/benbovy/xar
 
 - `AppLinker`: Easily link different application instances for, e.g., side-by-side comparison
 
-![AppLinker Demo](https://user-images.githubusercontent.com/4160723/95762839-8af3ac00-0cae-11eb-8080-0472e7e6b9d6.gif)
+![AppLinker Demo](https://user-images.githubusercontent.com/4160723/95762839-8af3ac00-0cae-11eb-8080-0472e7e6b9d6.gif | width=640)
