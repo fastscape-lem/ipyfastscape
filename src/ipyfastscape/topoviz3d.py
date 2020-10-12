@@ -8,6 +8,7 @@ from .xr_accessor import WidgetsAccessor  # noqa: F401
 
 
 class VerticalExaggeration(AppComponent):
+    allow_link = False
     name = 'Vert. Exaggeration'
 
     def __init__(self, *args, canvas_callback: Callable = None):
@@ -24,27 +25,27 @@ class VerticalExaggeration(AppComponent):
     def linkable_traits(self):
         return [(self.slider, 'value')]
 
+    def set_factor(self, value):
+        self.slider.value = value
+
 
 class BackgroundColor(AppComponent):
     allow_link = False
     name = 'Background Color'
 
-    def __init__(self, *args):
-        super().__init__(*args)
-
     def setup(self):
-        self.picker = widgets.ColorPicker(concise=True, value=self.canvas.background_color)
-
-        widgets.jslink((self.picker, 'value'), (self.canvas, 'background_color'))
+        self.picker = widgets.ColorPicker(concise=True, value='white')
 
         return widgets.VBox([widgets.Label('Background color: '), self.picker])
 
+    def set_color(self, value):
+        self.picker.value = value
 
-class TopoViz3d(VizApp):
 
-    canvas: Scene
+class GanyScene(AppComponent):
+    name = '3D Scene'
 
-    def _reset_canvas(self):
+    def setup(self):
         vertices, triangle_indices = self.dataset._widgets.to_unstructured_mesh()
 
         elev_da = self.dataset._widgets.elevation
@@ -62,45 +63,67 @@ class TopoViz3d(VizApp):
             self.polymesh, input=('color', 'value'), min=elev_min, max=elev_max
         )
         self.warp = WarpByScalar(self.isocolor, input='warp', factor=1)
+        self.scene = Scene([self.warp])
 
-        self.canvas = Scene([self.warp])
+        return self.scene
 
-    def _update_step(self):
+    def redraw_color_warp(self):
         new_warp_array = self.dataset._widgets.current_elevation.values
-        self.polymesh[('warp', 'value')].array = new_warp_array
-
         new_color_array = self.dataset._widgets.current_color.values
-        self.polymesh[('color', 'value')].array = new_color_array
 
-    def _update_scene_color_var(self):
-        self.polymesh[('color', 'value')].array = self.dataset._widgets.current_color
+        with self.scene.hold_sync():
+            self.polymesh[('color', 'value')].array = new_color_array
+            self.polymesh[('warp', 'value')].array = new_warp_array
 
-    def _update_scene_color_range(self, da):
-        self.isocolor.min = da.min()
-        self.isocolor.max = da.max()
+    def reset_color_range(self, step=False):
+        if step:
+            da = self.dataset._widgets.current_color
+        else:
+            da = self.dataset._widgets.color
 
+        with self.scene.hold_sync():
+            self.isocolor.min = da.min()
+            self.isocolor.max = da.max()
+
+    def linkable_traits(self):
+        # TODO: jslink camera doesn't work yet in ipygany
+        return [
+            (self.scene, 'camera_position'),
+            (self.scene, 'camera_target'),
+            (self.scene, 'camera_up'),
+        ]
+
+
+class TopoViz3d(VizApp):
     def _update_warp_factor(self, change):
-        self.warp.factor = change['new']
+        self.components['canvas'].warp.factor = change['new']
+
+    def _reset_canvas(self):
+        gs = GanyScene(self.dataset)
+        self._canvas = gs.scene
+
+        return gs
+
+    def _redraw_canvas(self):
+        self.components['canvas'].redraw_color_warp()
 
     def _get_display_properties(self):
         props = {}
 
         coloring = Coloring(
             self.dataset,
-            self.canvas,
-            canvas_callback_var=self._update_scene_color_var,
-            canvas_callback_range=self._update_scene_color_range,
+            canvas_callback_var=self.components['canvas'].redraw_color_warp,
+            canvas_callback_range=self.components['canvas'].reset_color_range,
         )
-        widgets.jslink((coloring.min_input, 'value'), (self.isocolor, 'min'))
-        widgets.jslink((coloring.max_input, 'value'), (self.isocolor, 'max'))
+        widgets.jslink((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
+        widgets.jslink((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
         props['coloring'] = coloring
 
-        vert_exag = VerticalExaggeration(
-            self.dataset, self.canvas, canvas_callback=self._update_warp_factor
-        )
+        vert_exag = VerticalExaggeration(self.dataset, canvas_callback=self._update_warp_factor)
         props['vertical_exaggeration'] = vert_exag
 
-        bcolor = BackgroundColor(self.dataset, self.canvas)
-        props['background_color'] = bcolor
+        bgcolor = BackgroundColor(self.dataset)
+        widgets.jslink((bgcolor.picker, 'value'), (self.canvas, 'background_color'))
+        props['background_color'] = bgcolor
 
         return props

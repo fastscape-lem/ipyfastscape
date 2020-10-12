@@ -20,12 +20,11 @@ class AppComponent:
     allow_link: bool = True
     name: Optional[str] = None
 
-    def __init__(self, dataset: xr.Dataset, canvas: widgets.DOMWidget):
+    def __init__(self, dataset: xr.Dataset):
         self.dataset = dataset
-        self.canvas = canvas
         self._widget = self.setup()
 
-    def setup(self) -> widgets.DOMWidget:
+    def setup(self) -> widgets.Widget:
         raise NotImplementedError()
 
     @property
@@ -95,8 +94,7 @@ class DimensionExplorer(AppComponent):
         self._update_value_labels()
 
         if self.canvas_callback is not None:
-            with self.canvas.hold_sync():
-                self.canvas_callback()
+            self.canvas_callback()
 
 
 class TimeStepper(AppComponent):
@@ -145,8 +143,7 @@ class TimeStepper(AppComponent):
         self.label.value = self.dataset._widgets.current_time_fmt
 
         if self.canvas_callback is not None:
-            with self.canvas.hold_sync():
-                self.canvas_callback()
+            self.canvas_callback()
 
     def _update_play_speed(self, change):
         speed_ms = int((520 + 500 * math.cos(change['new'] * math.pi / 50)) / 2)
@@ -218,48 +215,34 @@ class Coloring(AppComponent):
 
     def _update_var(self, change):
         self.dataset._widgets.color_var = change['new']
-        da = self.dataset._widgets.color
 
-        with self.canvas.hold_sync():
-            if self.canvas_callback_var is not None:
-                self.canvas_callback_var()
-            if self.canvas_callback_range is not None:
-                self.canvas_callback_range(da)
+        if self.canvas_callback_var is not None:
+            self.canvas_callback_var()
+        if self.canvas_callback_range is not None:
+            self.canvas_callback_range()
 
     def _update_range(self, step=False):
-        if step:
-            da = self.dataset._widgets.current_color
-        else:
-            da = self.dataset._widgets.color
-
         if self.canvas_callback_range is not None:
-            with self.canvas.hold_sync():
-                self.canvas_callback_range(da)
+            self.canvas_callback_range(step=step)
 
 
 class VizApp:
     """Base class for ipyfastscape's visualization apps."""
 
     dataset: Optional[xr.Dataset]
-    canvas: Optional[widgets.DOMWidget]
-    app_components: Dict[str, AppComponent]
-    output: widgets.Output
+    components: Dict[str, AppComponent]
 
     def __init__(self, dataset: xr.Dataset = None, canvas_height: int = 600, **kwargs):
 
         self._canvas_height = int(canvas_height)
-        # add margin + header height
-        self._output_height = self._canvas_height + 10 + 30
-
-        self.canvas = None
-        self.app_components = {}
-
-        self.output = widgets.Output(layout=widgets.Layout(height=str(self._output_height) + 'px'))
-
-        self.dataset = None
+        self._canvas = None
+        self._output = widgets.Output()
+        self.components = {}
 
         if dataset is not None:
             self.load_dataset(dataset, **kwargs)
+        else:
+            self.dataset = None
 
     def load_dataset(
         self,
@@ -280,14 +263,15 @@ class VizApp:
 
         self.reset_app()
 
-    def _update_step(self):
-        pass
+    @property
+    def canvas(self) -> widgets.DOMWidget:
+        return self._canvas
 
     def _reset_canvas(self):
         pass
 
-    def _get_display_properties(self) -> Dict[str, AppComponent]:
-        return {}
+    def _redraw_canvas(self):
+        pass
 
     def _resize_canvas(self):
         # TODO: proper canvas resizing
@@ -296,10 +280,21 @@ class VizApp:
             self.canvas.layout.width = 'auto'
             self.canvas.layout.width = '100%'
 
-    def reset_app(self):
-        self.output.clear_output()
+    def _get_display_properties(self) -> Dict[str, AppComponent]:
+        return {}
 
-        self._reset_canvas()
+    def reset_app(self):
+        self._output.clear_output()
+
+        output_height = self._canvas_height
+
+        if self.dataset._widgets.time_dim is not None:
+            # add margin + header
+            output_height += 10 + 30
+
+        self._output.layout = widgets.Layout(height=str(output_height) + 'px')
+
+        self.components['canvas'] = self._reset_canvas()
         self.canvas.layout = widgets.Layout(
             width='100%',
             height=str(self._canvas_height) + 'px',
@@ -320,8 +315,8 @@ class VizApp:
         header_elements.append(menu_button)
 
         if self.dataset._widgets.time_dim is not None:
-            timestepper = TimeStepper(self.dataset, self.canvas, canvas_callback=self._update_step)
-            self.app_components['timestepper'] = timestepper
+            timestepper = TimeStepper(self.dataset, canvas_callback=self._redraw_canvas)
+            self.components['timestepper'] = timestepper
             header_elements.append(timestepper.widget)
 
         # left pane
@@ -329,15 +324,13 @@ class VizApp:
         accordion_titles = []
 
         if len(self.dataset._widgets.extra_dims):
-            dim_explorer = DimensionExplorer(
-                self.dataset, self.canvas, canvas_callback=self._update_step
-            )
-            self.app_components['dimensions'] = dim_explorer
+            dim_explorer = DimensionExplorer(self.dataset, canvas_callback=self._redraw_canvas)
+            self.components['dimensions'] = dim_explorer
             accordion_elements.append(dim_explorer.widget)
             accordion_titles.append('Dimensions')
 
         display_properties = self._get_display_properties()
-        self.app_components.update(display_properties)
+        self.components.update(display_properties)
         display_properties_box = widgets.VBox([dp.widget for dp in display_properties.values()])
         accordion_elements.append(display_properties_box)
         accordion_titles.append('Display properties')
@@ -377,11 +370,15 @@ class VizApp:
             overflow='hidden',
         )
 
-        with self.output:
+        with self._output:
             display(app)
 
+    @property
+    def widget(self) -> widgets.Widget:
+        return self._output
+
     def show(self):
-        display(self.output)
+        display(self._output)
 
 
 def _linker_button_observe_factory(comp_objs: List[AppComponent]) -> Callable:
@@ -405,7 +402,7 @@ def _linker_button_observe_factory(comp_objs: List[AppComponent]) -> Callable:
 
 
 def _create_linker_button(apps: List[VizApp], comp_name: str) -> Union[widgets.ToggleButton, None]:
-    comp_objs = [app.app_components[comp_name] for app in apps]
+    comp_objs = [app.components[comp_name] for app in apps]
 
     comp_cls = type(comp_objs[0])
     same_type = all([isinstance(obj, comp_cls) for obj in comp_objs])
@@ -437,7 +434,7 @@ class AppLinker:
 
     def setup(self):
 
-        app_components = set().union(*[app.app_components for app in self._apps])
+        app_components = set().union(*[app.components for app in self._apps])
 
         buttons = [_create_linker_button(self._apps, comp_name) for comp_name in app_components]
         self.buttons = [b for b in buttons if b is not None]
@@ -445,7 +442,7 @@ class AppLinker:
         return widgets.HBox(self.buttons)
 
     @property
-    def widget(self):
+    def widget(self) -> widgets.Widget:
         return self._widget
 
     def show(self):
