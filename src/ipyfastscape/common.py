@@ -37,6 +37,11 @@ class AppComponent:
 
 
 class DimensionExplorer(AppComponent):
+    """Provides controls for exploring extra-dimensions of a Dataset (i.e.,
+    non-space, non-time).
+
+    """
+
     name = 'Dimensions'
 
     def __init__(self, *args, canvas_callback: Callable = None):
@@ -98,6 +103,8 @@ class DimensionExplorer(AppComponent):
 
 
 class TimeStepper(AppComponent):
+    """Provides animation controls for temporal or other iterative data."""
+
     name = 'Steps'
 
     def __init__(self, *args, canvas_callback: Callable = None):
@@ -150,14 +157,22 @@ class TimeStepper(AppComponent):
         self.play.interval = speed_ms
 
     def go_to_step(self, step):
+        """Select a given (time) step."""
         self.slider.value = step
 
     def go_to_time(self, time):
+        """Select a given time (or step label).
+
+        Select the step that is the closest to the given time/label.
+
+        """
         step = self.dataset._widgets.time_to_step(time)
         self.slider.value = step
 
 
 class Coloring(AppComponent):
+    """Provides controls for colored data (e.g., heatmap, isocolor)."""
+
     allow_link = False
     name = 'Coloring'
 
@@ -171,9 +186,9 @@ class Coloring(AppComponent):
     def setup(self):
         self.var_dropdown = widgets.Dropdown(
             value=self.dataset._widgets.elevation_var,
-            options=list(self.dataset._widgets.data_vars),
+            options=list(self.color_vars),
         )
-        self.var_dropdown.observe(self._update_var, names='value')
+        self.var_dropdown.observe(lambda change: self._set_color_var(change['new']), names='value')
 
         da = self.dataset._widgets.color
         self.min_input = widgets.FloatText(
@@ -188,14 +203,14 @@ class Coloring(AppComponent):
             tooltip='Rescale to actual data range',
             layout=widgets.Layout(height='auto', width='auto'),
         )
-        self.rescale_button.on_click(lambda _: self._update_range())
+        self.rescale_button.on_click(lambda _: self.reset_color_limits())
 
         self.rescale_step_button = widgets.Button(
             description='Rescale Step',
             tooltip='Rescale to actual data range (current step)',
             layout=widgets.Layout(height='auto', width='auto'),
         )
-        self.rescale_step_button.on_click(lambda _: self._update_range(step=True))
+        self.rescale_step_button.on_click(lambda _: self.reset_color_limits(step=True))
 
         range_grid = widgets.GridspecLayout(2, 2)
         range_grid[0, 0] = self.min_input
@@ -213,15 +228,50 @@ class Coloring(AppComponent):
             ]
         )
 
-    def _update_var(self, change):
-        self.dataset._widgets.color_var = change['new']
+    @property
+    def color_vars(self) -> Tuple[str]:
+        """Returns all possible color variables."""
+        return tuple(self.dataset._widgets.data_vars)
+
+    def _set_color_var(self, var_name):
+        self.dataset._widgets.color_var = var_name
 
         if self.canvas_callback_var is not None:
             self.canvas_callback_var()
         if self.canvas_callback_range is not None:
             self.canvas_callback_range()
 
-    def _update_range(self, step=False):
+    def set_color_var(self, var_name):
+        """Map the coloring to a data variable.
+
+        Parameters
+        ----------
+        var_name : str
+            Name of the data variable (must be one of the names
+            returned by the ``color_vars`` property).
+
+        """
+        if var_name not in self.color_vars:
+            raise ValueError(f'Invalid variable name {var_name}, must be one of {self.color_vars}')
+
+        self.var_dropdown.value = var_name
+
+    def set_color_limits(self, vmin: Union[int, float], vmax: Union[int, float]):
+        """Set the colormap limits to the given min/max values."""
+        self.min_input.value = vmin
+        self.max_input.value = vmax
+
+    def reset_color_limits(self, step=False):
+        """Reset color limits to data range.
+
+        Parameters
+        ----------
+        step : bool
+            If true, resets the color range to the range of the data that is shown
+            in the current scene. Otherwise (default), resets the color range to the
+            whole data range.
+
+        """
         if self.canvas_callback_range is not None:
             self.canvas_callback_range(step=step)
 
@@ -233,7 +283,18 @@ class VizApp:
     components: Dict[str, AppComponent]
 
     def __init__(self, dataset: xr.Dataset = None, canvas_height: int = 600, **kwargs):
+        """
 
+        Parameters
+        ----------
+        dataset : xr.Dataset
+            Visualization data.
+        canvas_height : int
+            Height of figure or scene canvas, in pixels.
+        **kwargs
+            Keyword arguments passed to ``.load_dataset()``.
+
+        """
         self._canvas_height = int(canvas_height)
         self._canvas = None
         self._output = widgets.Output()
@@ -252,6 +313,30 @@ class VizApp:
         elevation_var: str = 'topography__elevation',
         time_dim: Optional[str] = None,
     ):
+        """Load a new dataset and reset the application.
+
+        Parameters
+        ----------
+        dataset : xr.Dataset
+            Visualization data.
+        x_dim : str, optional
+            Name of the dimension in the dataset corresponding to the 'x' axis.
+        y_dim : str, optional
+            Name of the dimension in the dataset corresponding to the 'y' axis.
+        elevation_var : str, optional
+            Name of the data variable that contains elevation values. This data
+            variable must contain the dimensions labels given here as arguments.
+        time_dim : str, optional
+            Name of the time or step dimension in the dataset. If no dimension
+            is given (default), any dimension other than ``x_dim`` and ``y_dim``
+            will be considered as an extra dimension.
+
+        Notes
+        -----
+        The application will retain in the dataset all data variables that have
+        the same dimension labels than ``elevation_var``.
+
+        """
         if not isinstance(dataset, xr.Dataset):
             raise TypeError(f'{dataset} is not a xarray.Dataset object')
 
@@ -265,6 +350,7 @@ class VizApp:
 
     @property
     def canvas(self) -> widgets.DOMWidget:
+        """Returns the figure or scene canvas."""
         return self._canvas
 
     def _reset_canvas(self):
@@ -284,6 +370,7 @@ class VizApp:
         return {}
 
     def reset_app(self):
+        """Clear output and reset the whole application."""
         self._output.clear_output()
 
         output_height = self._canvas_height
@@ -375,9 +462,11 @@ class VizApp:
 
     @property
     def widget(self) -> widgets.Widget:
+        """Returns the application's output widget."""
         return self._output
 
     def show(self):
+        """Display the application."""
         display(self._output)
 
 
@@ -418,8 +507,24 @@ def _create_linker_button(apps: List[VizApp], comp_name: str) -> Union[widgets.T
 
 
 class AppLinker:
-    def __init__(self, apps: List[VizApp]):
+    """Provides some UI controls to easily link controls from two
+    or more applications.
 
+    This is useful for, e.g., comparing different models or datasets
+    side-by-side.
+
+    """
+
+    def __init__(self, apps: List[VizApp]):
+        """
+
+        Parameters
+        ----------
+        apps : list of :class:`ipyfastscape.VizApp` objects
+            Application objects to link. The list must at least contain
+            two different application instances.
+
+        """
         if not all([isinstance(app, VizApp) for app in apps]):
             raise TypeError('`app` argument only accepts VizApp objects')
 
@@ -443,7 +548,9 @@ class AppLinker:
 
     @property
     def widget(self) -> widgets.Widget:
+        """Return the application linker as a widget."""
         return self._widget
 
     def show(self):
+        """Display the application linker."""
         display(self.widget)

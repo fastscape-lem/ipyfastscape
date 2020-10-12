@@ -8,6 +8,8 @@ from .xr_accessor import WidgetsAccessor  # noqa: F401
 
 
 class VerticalExaggeration(AppComponent):
+    """Provides a slider for setting vertical exaggeration of a 3D surface."""
+
     allow_link = False
     name = 'Vert. Exaggeration'
 
@@ -26,10 +28,20 @@ class VerticalExaggeration(AppComponent):
         return [(self.slider, 'value')]
 
     def set_factor(self, value):
+        """Set vertical exaggeration factor.
+
+        Parameters
+        ----------
+        value : float
+            Exaggeration factor.
+
+        """
         self.slider.value = value
 
 
 class BackgroundColor(AppComponent):
+    """Provides a color picker for setting figure or scene background color."""
+
     allow_link = False
     name = 'Background Color'
 
@@ -39,10 +51,20 @@ class BackgroundColor(AppComponent):
         return widgets.VBox([widgets.Label('Background color: '), self.picker])
 
     def set_color(self, value):
+        """Set background color.
+
+        Parameter
+        ---------
+        value : str
+            Any valid HTML color.
+
+        """
         self.picker.value = value
 
 
 class GanyScene(AppComponent):
+    """Canvas for 3D surface mesh interactive plotting based on ipygany."""
+
     name = '3D Scene'
 
     def setup(self):
@@ -68,6 +90,7 @@ class GanyScene(AppComponent):
         return self.scene
 
     def redraw_color_warp(self):
+        """Trigger scene redraw if data slice has been updated."""
         new_warp_array = self.dataset._widgets.current_elevation.values
         new_color_array = self.dataset._widgets.current_color.values
 
@@ -76,6 +99,16 @@ class GanyScene(AppComponent):
             self.polymesh[('warp', 'value')].array = new_warp_array
 
     def reset_color_range(self, step=False):
+        """Resets the color range to data range.
+
+        Parameters
+        ----------
+        step : bool
+            If true, resets the color range to the range of the data that is shown
+            in the current scene. Otherwise (default), resets the color range to the
+            whole data range.
+
+        """
         if step:
             da = self.dataset._widgets.current_color
         else:
