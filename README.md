@@ -13,3 +13,7 @@ dataset or any model created with [xarray-simlab](https://github.com/benbovy/xar
 - `TopoViz3d`: 3D terrain visualization
 
 ![TopoViz3d demo](https://user-images.githubusercontent.com/4160723/95083363-b4e02800-071c-11eb-939d-463ebb8342a2.gif)
+
+- `AppLinker`: Easily link different application instances for, e.g., side-by-side comparison
+
+![AppLinker Demo](https://user-images.githubusercontent.com/4160723/95762839-8af3ac00-0cae-11eb-8080-0472e7e6b9d6.gif)
