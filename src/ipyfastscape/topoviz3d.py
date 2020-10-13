@@ -89,7 +89,7 @@ class GanyScene(AppComponent):
 
         return self.scene
 
-    def redraw_color_warp(self):
+    def redraw_isocolor_warp(self):
         """Trigger scene redraw if data slice has been updated."""
         new_warp_array = self.dataset._widgets.current_elevation.values
         new_color_array = self.dataset._widgets.current_color.values
@@ -98,8 +98,8 @@ class GanyScene(AppComponent):
             self.polymesh[('color', 'value')].array = new_color_array
             self.polymesh[('warp', 'value')].array = new_warp_array
 
-    def reset_color_range(self, step=False):
-        """Resets the color range to data range.
+    def reset_isocolor_limits(self, step=False):
+        """Resets color limits to data range.
 
         Parameters
         ----------
@@ -138,15 +138,15 @@ class TopoViz3d(VizApp):
         return gs
 
     def _redraw_canvas(self):
-        self.components['canvas'].redraw_color_warp()
+        self.components['canvas'].redraw_isocolor_warp()
 
     def _get_display_properties(self):
         props = {}
 
         coloring = Coloring(
             self.dataset,
-            canvas_callback_var=self.components['canvas'].redraw_color_warp,
-            canvas_callback_range=self.components['canvas'].reset_color_range,
+            canvas_callback_var=self._redraw_canvas,
+            canvas_callback_range=self.components['canvas'].reset_isocolor_limits,
         )
         widgets.jslink((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
         widgets.jslink((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
