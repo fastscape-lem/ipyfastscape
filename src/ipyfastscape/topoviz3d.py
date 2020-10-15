@@ -118,6 +118,7 @@ class GanyScene(AppComponent):
             self.isocolor.min = da.min()
             self.isocolor.max = da.max()
 
+    @property
     def linkable_traits(self):
         # TODO: jslink camera doesn't work yet in ipygany
         return [
