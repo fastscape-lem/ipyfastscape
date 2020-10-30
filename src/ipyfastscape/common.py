@@ -28,7 +28,7 @@ class AppComponent:
         raise NotImplementedError()
 
     @property
-    def widget(self) -> widgets.DOMWidget:
+    def widget(self) -> widgets.Widget:
         return self._widget
 
     @property
