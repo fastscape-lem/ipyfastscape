@@ -6,7 +6,7 @@ from ipyfastscape.xr_accessor import WidgetsAccessor  # noqa: F401
 
 
 @pytest.fixture
-def dataset():
+def dataset() -> xr.Dataset:
     x = np.array([0, 1, 2])
     y = np.array([0, 1, 2])
     time = np.array([0, 100, 200])
@@ -34,7 +34,7 @@ def dataset():
 
 
 @pytest.fixture
-def dataset_init(dataset):
+def dataset_init(dataset) -> xr.Dataset:
     dataset._widgets(time_dim='time')
 
     return dataset

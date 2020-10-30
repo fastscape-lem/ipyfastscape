@@ -1,4 +1,6 @@
+import numpy as np
 import pytest
+import xarray as xr
 
 
 def test_initializer(dataset):
@@ -61,3 +63,107 @@ def test_timestep(dataset_init):
 
     dataset_init._widgets.timestep = 1
     assert dataset_init._widgets.timestep == 1
+
+
+def test_current_time_fmt(dataset_init):
+    dataset_init._widgets.timestep = 1
+    assert dataset_init._widgets.current_time_fmt == '1 / 100'
+
+
+def test_extra_dims(dataset_init):
+    assert dataset_init._widgets.extra_dims == {'batch': 0}
+
+
+def test_update_extra_dims(dataset_init):
+    dataset_init._widgets.update_extra_dims({'batch': 1})
+    assert dataset_init._widgets.extra_dims == {'batch': 1}
+
+    with pytest.raises(ValueError, match='invalid dimension.*'):
+        dataset_init._widgets.update_extra_dims({'invalid_dim': 0})
+
+
+def test_extra_dims_names(dataset_init):
+    assert dataset_init._widgets.extra_dims_names == {'batch': ('batch',)}
+
+    ds = dataset_init.assign(batch_level2=('batch', ['a', 'b', 'c'])).set_index(
+        midx=['batch', 'batch_level2']
+    )
+
+    expected = {'midx': ('batch', 'batch_level2')}
+    assert ds._widgets(time_dim='time').extra_dims_names == expected
+
+
+def test_extra_dims_sizes(dataset_init):
+    assert dataset_init._widgets.extra_dims_sizes == {'batch': 3}
+
+
+def test_extra_dims_fmt(dataset_init):
+    assert dataset_init._widgets.extra_dims_fmt == {'batch': ('1',)}
+
+    ds = dataset_init.assign(batch_level2=('batch', ['a', 'b', 'c'])).set_index(
+        midx=['batch', 'batch_level2']
+    )
+
+    assert ds._widgets(time_dim='time').extra_dims_fmt == {'midx': ('1', 'a')}
+
+    ds2 = ds.reset_index('midx', drop=True)
+
+    assert ds2._widgets(time_dim='time').extra_dims_fmt == {'midx': ('',)}
+
+
+def test_view(dataset_init):
+    xr.testing.assert_equal(dataset_init.isel(batch=0), dataset_init._widgets.view)
+
+    # no extra dims
+    ds = dataset_init.isel(batch=0).squeeze()
+    ds._widgets(time_dim='time')
+    xr.testing.assert_equal(ds, ds._widgets.view)
+
+    # check view is updated
+    dataset_init._widgets.update_extra_dims({'batch': 1})
+    xr.testing.assert_equal(dataset_init.isel(batch=1), dataset_init._widgets.view)
+
+
+def test_view_step(dataset_init):
+    xr.testing.assert_equal(dataset_init.isel(batch=0, time=0), dataset_init._widgets.view_step)
+
+    # no time dim
+    ds = dataset_init.isel(time=0).squeeze()
+    ds._widgets()
+    xr.testing.assert_equal(ds.isel(batch=0), ds._widgets.view_step)
+
+    # check view is updated
+    dataset_init._widgets.update_extra_dims({'batch': 1})
+    xr.testing.assert_equal(dataset_init.isel(batch=1, time=0), dataset_init._widgets.view_step)
+
+    dataset_init._widgets.timestep = 1
+    xr.testing.assert_equal(dataset_init.isel(batch=1, time=1), dataset_init._widgets.view_step)
+
+
+def test_var_properties(dataset_init):
+    xr.testing.assert_equal(
+        dataset_init._widgets.elevation, dataset_init[dataset_init._widgets.elevation_var]
+    )
+
+    xr.testing.assert_equal(
+        dataset_init._widgets.color, dataset_init[dataset_init._widgets.color_var]
+    )
+
+    xr.testing.assert_equal(
+        dataset_init._widgets.current_elevation,
+        dataset_init._widgets.view_step[dataset_init._widgets.elevation_var],
+    )
+
+    xr.testing.assert_equal(
+        dataset_init._widgets.current_color,
+        dataset_init._widgets.view_step[dataset_init._widgets.color_var],
+    )
+
+
+def test_to_unstructured_mesh(dataset_init):
+    vertices, triangles = dataset_init._widgets.to_unstructured_mesh()
+
+    assert vertices.shape == (len(dataset_init.x) * len(dataset_init.y), 3)
+    np.testing.assert_equal(vertices[:, 2], 0)
+
+    assert triangles.shape == (len(dataset_init.x) * len(dataset_init.y) - 1, 3)
