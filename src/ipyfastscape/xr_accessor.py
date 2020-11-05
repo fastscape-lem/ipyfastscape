@@ -31,7 +31,7 @@ class WidgetsAccessor:
 
         if time_dim is not None:
             if time_dim not in self._dataset.coords:
-                raise ValueError(f"coordinate '{time_dim}' not found in Dataset")
+                raise ValueError(f"coordinate '{time_dim}' missing in Dataset")
             if time_dim not in elevation_dims:
                 raise ValueError(f"variable '{elevation_var}' has no '{time_dim}' dimension")
 

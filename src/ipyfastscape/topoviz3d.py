@@ -149,6 +149,8 @@ class TopoViz3d(VizApp):
             canvas_callback_var=self._redraw_canvas,
             canvas_callback_range=self.components['canvas'].reset_isocolor_limits,
         )
+        widgets.link((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
+        widgets.link((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
         widgets.jslink((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
         widgets.jslink((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
         props['coloring'] = coloring
@@ -157,6 +159,7 @@ class TopoViz3d(VizApp):
         props['vertical_exaggeration'] = vert_exag
 
         bgcolor = BackgroundColor(self.dataset)
+        widgets.link((bgcolor.picker, 'value'), (self.canvas, 'background_color'))
         widgets.jslink((bgcolor.picker, 'value'), (self.canvas, 'background_color'))
         props['background_color'] = bgcolor
 
