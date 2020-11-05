@@ -40,4 +40,4 @@ jobs:
           python -c "import ipyfastscape"
       - name: Run tests
         shell: bash -l {0}
-        run: pytest ipyfastscape --cov=ipyfastscape --cov-report term-missing --cov-report xml --verbose --color=yes
+        run: pytest src/ipyfastscape --cov=src/ipyfastscape --cov-report term-missing --cov-report xml --verbose --color=yes
