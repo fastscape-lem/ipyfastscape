@@ -31,7 +31,8 @@ jobs:
         run: conda info
       - name: Install dependencies (mamba)
         shell: bash -l {0}
-        run: mamba install xarray ipygany ipywidgets pytest pytest-cov
+        run: |
+          mamba install xarray ipygany ipywidgets pytest pytest-cov
       - name: Install ipyfastscape
         shell: bash -l {0}
         run: |
