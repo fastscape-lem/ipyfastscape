@@ -36,7 +36,7 @@ jobs:
         shell: bash -l {0}
         run: |
           pip install --no-deps -e .
-          python -OO -c "import ipyfastscape"
+          python -c "import ipyfastscape"
       - name: Run tests
         shell: bash -l {0}
         run: pytest ipyfastscape --cov=ipyfastscape --cov-report term-missing --cov-report xml --verbose --color=yes
