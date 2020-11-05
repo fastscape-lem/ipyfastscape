@@ -296,7 +296,7 @@ class VizApp:
 
         """
         self._canvas_height = int(canvas_height)
-        self._canvas = None
+        self._canvas = widgets.DOMWidget()
         self._output = widgets.Output()
         self.components = {}
 
@@ -461,49 +461,13 @@ class VizApp:
             display(app)
 
     @property
-    def widget(self) -> widgets.Widget:
+    def widget(self) -> widgets.Output:
         """Returns the application's output widget."""
         return self._output
 
     def show(self):
         """Display the application."""
         display(self._output)
-
-
-def _linker_button_observe_factory(comp_objs: List[AppComponent]) -> Callable:
-    c0 = comp_objs[0]
-    comps = comp_objs[1:]
-
-    link_objs = []
-
-    def on_click(change):
-        if change['new']:
-            for c in comps:
-                for source, target in zip(c0.linkable_traits, c.linkable_traits):
-                    link = widgets.jslink(source, target)
-                    link_objs.append(link)
-        else:
-            for link in link_objs:
-                link.unlink()
-            link_objs.clear()
-
-    return on_click
-
-
-def _create_linker_button(apps: List[VizApp], comp_name: str) -> Union[widgets.ToggleButton, None]:
-    comp_objs = [app.components[comp_name] for app in apps]
-
-    comp_cls = type(comp_objs[0])
-    same_type = all([isinstance(obj, comp_cls) for obj in comp_objs])
-
-    if not comp_cls.allow_link or not same_type:
-        return None
-
-    layout = widgets.Layout(width='200px')
-    button = widgets.ToggleButton(value=False, description=f'Link {comp_cls.name}', layout=layout)
-    button.observe(_linker_button_observe_factory(comp_objs), names='value')
-
-    return button
 
 
 class AppLinker:
@@ -515,7 +479,7 @@ class AppLinker:
 
     """
 
-    def __init__(self, apps: List[VizApp]):
+    def __init__(self, apps: List[VizApp], link_client=True, link_server=False):
         """
 
         Parameters
@@ -523,6 +487,10 @@ class AppLinker:
         apps : list of :class:`ipyfastscape.VizApp` objects
             Application objects to link. The list must at least contain
             two different application instances.
+        link_client : bool
+            If True (default), link application components on the client side.
+        link_server : bool
+            If True, link application components on the server side (default, False).
 
         """
         if not all([isinstance(app, VizApp) for app in apps]):
@@ -535,13 +503,53 @@ class AppLinker:
             raise ValueError('AppLinker works with distinct VizApp objects')
 
         self._apps = apps
+        self._link_client = link_client
+        self._link_server = link_server
         self._widget = self.setup()
 
-    def setup(self):
+    def _linker_button_observe_factory(self, comp_objs: List[AppComponent]) -> Callable:
+        c0 = comp_objs[0]
+        comps = comp_objs[1:]
 
+        link_objs = []
+
+        def on_click(change):
+            if change['new']:
+                for c in comps:
+                    for source, target in zip(c0.linkable_traits, c.linkable_traits):
+                        if self._link_client:
+                            link_objs.append(widgets.jslink(source, target))
+                        if self._link_server:
+                            link_objs.append(widgets.link(source, target))
+            else:
+                for link in link_objs:
+                    link.unlink()
+                link_objs.clear()
+
+        return on_click
+
+    def _create_linker_button(self, comp_name: str) -> Union[widgets.ToggleButton, None]:
+        comp_objs = [app.components[comp_name] for app in self._apps]
+
+        comp_cls = type(comp_objs[0])
+        allow_link = getattr(comp_cls, 'allow_link', False)
+        same_type = all([isinstance(obj, comp_cls) for obj in comp_objs])
+
+        if not allow_link or not same_type:
+            return None
+
+        layout = widgets.Layout(width='200px')
+        button = widgets.ToggleButton(
+            value=False, description=f'Link {comp_cls.name}', layout=layout
+        )
+        button.observe(self._linker_button_observe_factory(comp_objs), names='value')
+
+        return button
+
+    def setup(self):
         app_components = set().union(*[app.components for app in self._apps])
 
-        buttons = [_create_linker_button(self._apps, comp_name) for comp_name in app_components]
+        buttons = [self._create_linker_button(comp_name) for comp_name in app_components]
         self.buttons = [b for b in buttons if b is not None]
 
         return widgets.HBox(self.buttons)
