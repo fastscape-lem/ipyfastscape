@@ -10,14 +10,7 @@ from ipyfastscape.common import (
     VizApp,
 )
 
-
-def counter_callback():
-    counter = {'called': 0}
-
-    def callback(*args, **kwargs):
-        counter['called'] += 1
-
-    return counter, callback
+from .utils import counter_callback
 
 
 def test_app_component(dataset_init):
