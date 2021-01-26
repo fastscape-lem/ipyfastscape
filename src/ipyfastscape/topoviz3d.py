@@ -1,7 +1,7 @@
 from typing import Callable
 
 import ipywidgets as widgets
-from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar, colormaps
+from ipygany import ColorBar, Component, IsoColor, PolyMesh, Scene, WarpByScalar, colormaps
 from IPython.display import display
 
 from .common import AppComponent, Coloring, VizApp
@@ -129,6 +129,21 @@ class GanyScene(AppComponent):
         ]
 
 
+class GanyColorbar(AppComponent):
+
+    allow_link = False
+    name = 'Colorbar'
+
+    def __init__(self, *args, isocolor: IsoColor = None):
+        self.isocolor = isocolor
+        super().__init__(*args)
+
+    def setup(self):
+        self.colorbar = ColorBar(self.isocolor)
+
+        return widgets.VBox([self.colorbar], layout=widgets.Layout(margin='20px 0'))
+
+
 class TopoViz3d(VizApp):
     def _update_warp_factor(self, change):
         self.components['canvas'].warp.factor = change['new']
@@ -177,6 +192,9 @@ class TopoViz3d(VizApp):
         widgets.jslink((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
         widgets.jslink((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
         props['coloring'] = coloring
+
+        colorbar = GanyColorbar(self.dataset, isocolor=self.components['canvas'].isocolor)
+        props['colobar'] = colorbar
 
         vert_exag = VerticalExaggeration(self.dataset, canvas_callback=self._update_warp_factor)
         props['vertical_exaggeration'] = vert_exag
