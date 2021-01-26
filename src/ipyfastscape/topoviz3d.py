@@ -173,7 +173,7 @@ class TopoViz3d(VizApp):
 
         coloring = Coloring(
             self.dataset,
-            colormaps=colormaps,
+            colormaps=list(colormaps.keys()),
             default_colormap='Viridis',
             canvas_callback_var=self._redraw_canvas,
             canvas_callback_range=self.components['canvas'].reset_isocolor_limits,
