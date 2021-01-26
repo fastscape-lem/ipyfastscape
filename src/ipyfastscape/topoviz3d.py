@@ -121,12 +121,7 @@ class GanyScene(AppComponent):
 
     @property
     def linkable_traits(self):
-        # TODO: jslink camera doesn't work yet in ipygany
-        return [
-            (self.scene, 'camera_position'),
-            (self.scene, 'camera_target'),
-            (self.scene, 'camera_up'),
-        ]
+        return [(self.scene, 'camera')]
 
 
 class GanyColorbar(AppComponent):
