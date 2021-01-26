@@ -410,11 +410,13 @@ class VizApp:
     def _resize_canvas(self):
         # TODO: proper canvas resizing
         # the workaround below is a hack (force change with before back to 100%)
-        with self.canvas.hold_sync():
-            # self.canvas.layout.width = 'auto'
-            # self.canvas.layout.width = '100%'
-            self.canvas_output.layout.width = 'auto'
-            self.canvas_output.layout.width = '100%'
+        self.canvas_output.clear_output()
+
+        self.canvas_output.layout.width = 'auto'
+        self.canvas_output.layout.width = '100%'
+
+        with self.canvas_output:
+            display(self.canvas)
 
     def _get_display_properties(self) -> Dict[str, AppComponent]:
         return {}
