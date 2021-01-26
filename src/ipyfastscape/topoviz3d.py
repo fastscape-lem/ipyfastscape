@@ -2,6 +2,7 @@ from typing import Callable
 
 import ipywidgets as widgets
 from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
+from IPython.display import display
 
 from .common import AppComponent, Coloring, VizApp
 from .xr_accessor import WidgetsAccessor  # noqa: F401
@@ -164,3 +165,10 @@ class TopoViz3d(VizApp):
         props['background_color'] = bgcolor
 
         return props
+
+    def show(self):
+        # FIXME: canvas not shown otherwise (ipygany 0.5.0)
+        with self._output:
+            display(self.canvas)
+
+        super().show()
