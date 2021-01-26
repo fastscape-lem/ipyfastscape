@@ -1,7 +1,7 @@
 from typing import Callable
 
 import ipywidgets as widgets
-from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
+from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar, colormaps
 from IPython.display import display
 
 from .common import AppComponent, Coloring, VizApp
@@ -142,13 +142,35 @@ class TopoViz3d(VizApp):
     def _redraw_canvas(self):
         self.components['canvas'].redraw_isocolor_warp()
 
+    def _reload_canvas(self):
+        self.canvas_output.clear_output()
+        with self.canvas_output:
+            display(self.canvas)
+
+    def _set_color_scale(self, log=False):
+        if log:
+            ctype = 'log'
+        else:
+            ctype = 'linear'
+
+        self.components['canvas'].isocolor.type = ctype
+
+        # TODO: ipygany 0.5.0 rescale color without reload?
+        self._reload_canvas()
+
     def _get_display_properties(self):
         props = {}
 
         coloring = Coloring(
             self.dataset,
+            colormaps=colormaps,
+            default_colormap='Viridis',
             canvas_callback_var=self._redraw_canvas,
             canvas_callback_range=self.components['canvas'].reset_isocolor_limits,
+            canvas_callback_scale=self._set_color_scale,
+        )
+        widgets.link(
+            (coloring.colormaps_dropdown, 'index'), (self.components['canvas'].isocolor, 'colormap')
         )
         widgets.link((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
         widgets.link((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
@@ -167,8 +189,7 @@ class TopoViz3d(VizApp):
         return props
 
     def show(self):
-        # FIXME: canvas not shown otherwise (ipygany 0.5.0)
-        with self._output:
-            display(self.canvas)
-
         super().show()
+
+        # FIXME: canvas not shown otherwise (ipygany 0.5.0)
+        self._reload_canvas()
