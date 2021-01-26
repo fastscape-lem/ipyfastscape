@@ -177,10 +177,25 @@ class Coloring(AppComponent):
     name = 'Coloring'
 
     def __init__(
-        self, *args, canvas_callback_var: Callable = None, canvas_callback_range: Callable = None
+        self,
+        *args,
+        colormaps: Optional[List[str]] = None,
+        default_colormap: str = '',
+        canvas_callback_var: Callable = None,
+        canvas_callback_range: Callable = None,
+        canvas_callback_scale: Callable = None,
     ):
+        if colormaps is not None:
+            self.colormaps = colormaps
+        else:
+            self.colormaps = []
+
+        self.default_colormap = default_colormap
+
         self.canvas_callback_var = canvas_callback_var
         self.canvas_callback_range = canvas_callback_range
+        self.canvas_callback_scale = canvas_callback_scale
+
         super().__init__(*args)
 
     def setup(self):
@@ -189,6 +204,10 @@ class Coloring(AppComponent):
             options=list(self.color_vars),
         )
         self.var_dropdown.observe(lambda change: self._set_color_var(change['new']), names='value')
+
+        self.colormaps_dropdown = widgets.Dropdown(
+            options=self.colormaps, value=self.default_colormap
+        )
 
         da = self.dataset._widgets.color
         self.min_input = widgets.FloatText(
@@ -212,18 +231,28 @@ class Coloring(AppComponent):
         )
         self.rescale_step_button.on_click(lambda _: self.reset_color_limits(step=True))
 
-        range_grid = widgets.GridspecLayout(2, 2)
+        self.log_scale_checkbox = widgets.Checkbox(
+            value=False, indent=False, layout=widgets.Layout(width='100px'), description='log scale'
+        )
+        self.log_scale_checkbox.observe(
+            lambda change: self._set_color_scale(log=change['new']), names='value'
+        )
+
+        range_grid = widgets.GridspecLayout(3, 2)
         range_grid[0, 0] = self.min_input
         range_grid[0, 1] = self.max_input
         range_grid[1, 0] = self.rescale_button
         if self.dataset._widgets.time_dim is not None:
             range_grid[1, 1] = self.rescale_step_button
+        range_grid[2, 0] = self.log_scale_checkbox
 
         return widgets.VBox(
             [
                 widgets.Label('Coloring:'),
                 self.var_dropdown,
-                widgets.Label('Color range:'),
+                widgets.Label('Colormap:'),
+                self.colormaps_dropdown,
+                widgets.Label('Color range / scale:'),
                 range_grid,
             ]
         )
@@ -235,6 +264,9 @@ class Coloring(AppComponent):
 
     def _set_color_var(self, var_name):
         self.dataset._widgets.color_var = var_name
+
+        # reset color scale
+        self.log_scale_checkbox.value = False
 
         if self.canvas_callback_var is not None:
             self.canvas_callback_var()
@@ -275,6 +307,37 @@ class Coloring(AppComponent):
         if self.canvas_callback_range is not None:
             self.canvas_callback_range(step=step)
 
+    def _set_color_scale(self, log=False):
+        if self.canvas_callback_scale:
+            self.canvas_callback_scale(log=log)
+
+    def set_color_scale(self, log=False):
+        """Set color scale.
+
+        Parameters
+        ----------
+        log : bool
+            if True, set a logarithmic color scale. Otherwise set a linear
+            color scale (default).
+
+        """
+        self.log_scale_checkbox.value = log
+
+    def set_colormap(self, cm):
+        """Set colormap
+
+        Parameters
+        ----------
+        cm : str
+            One of the available colormaps. See the ``colormaps`` attribute for
+            a list of all available colormaps.
+
+        """
+        if cm not in self.colormaps:
+            raise ValueError(f'{cm} is not a valid colormap, must be one of {self.colormaps}')
+
+        self.colormaps_dropdown.value = cm
+
 
 class VizApp:
     """Base class for ipyfastscape's visualization apps."""
@@ -298,6 +361,7 @@ class VizApp:
         self._canvas_height = int(canvas_height)
         self._canvas = widgets.DOMWidget()
         self._output = widgets.Output()
+        self._canvas_output = widgets.Output()
         self.components = {}
 
         if dataset is not None:
@@ -353,6 +417,11 @@ class VizApp:
         """Returns the figure or scene canvas."""
         return self._canvas
 
+    @property
+    def canvas_output(self) -> widgets.Output:
+        """Returns the HTML container of the figure or scene canvas."""
+        return self._canvas_output
+
     def _reset_canvas(self):
         pass
 
@@ -362,9 +431,13 @@ class VizApp:
     def _resize_canvas(self):
         # TODO: proper canvas resizing
         # the workaround below is a hack (force change with before back to 100%)
-        with self.canvas.hold_sync():
-            self.canvas.layout.width = 'auto'
-            self.canvas.layout.width = '100%'
+        self.canvas_output.clear_output()
+
+        self.canvas_output.layout.width = 'auto'
+        self.canvas_output.layout.width = '100%'
+
+        with self.canvas_output:
+            display(self.canvas)
 
     def _get_display_properties(self) -> Dict[str, AppComponent]:
         return {}
@@ -372,6 +445,7 @@ class VizApp:
     def reset_app(self):
         """Clear output and reset the whole application."""
         self._output.clear_output()
+        self._canvas_output.clear_output()
 
         output_height = self._canvas_height
 
@@ -386,6 +460,12 @@ class VizApp:
             width='100%',
             height=str(self._canvas_height) + 'px',
             overflow='hidden',
+        )
+        self.canvas_output.layout = widgets.Layout(
+            width='100%',
+            height=str(self._canvas_height) + 'px',
+            overflow='hidden',
+            margin='0',
             border='solid 1px #bbb',
         )
 
@@ -444,12 +524,15 @@ class VizApp:
 
         menu_button.observe(toggle_left_pane, names='value')
 
+        with self._canvas_output:
+            display(self.canvas)
+
         # app
         app = widgets.AppLayout(
             header=widgets.HBox(header_elements),
             left_sidebar=None,
             right_sidebar=None,
-            center=widgets.HBox([left_pane, self.canvas]),
+            center=widgets.HBox([left_pane, self._canvas_output]),
             footer=None,
             pane_heights=['30px', str(self._canvas_height) + 'px', 0],
             grid_gap='10px',

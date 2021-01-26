@@ -1,7 +1,8 @@
 from typing import Callable
 
 import ipywidgets as widgets
-from ipygany import Component, IsoColor, PolyMesh, Scene, WarpByScalar
+from ipygany import ColorBar, Component, IsoColor, PolyMesh, Scene, WarpByScalar, colormaps
+from IPython.display import display
 
 from .common import AppComponent, Coloring, VizApp
 from .xr_accessor import WidgetsAccessor  # noqa: F401
@@ -120,12 +121,22 @@ class GanyScene(AppComponent):
 
     @property
     def linkable_traits(self):
-        # TODO: jslink camera doesn't work yet in ipygany
-        return [
-            (self.scene, 'camera_position'),
-            (self.scene, 'camera_target'),
-            (self.scene, 'camera_up'),
-        ]
+        return [(self.scene, 'camera')]
+
+
+class GanyColorbar(AppComponent):
+
+    allow_link = False
+    name = 'Colorbar'
+
+    def __init__(self, *args, isocolor: IsoColor = None):
+        self.isocolor = isocolor
+        super().__init__(*args)
+
+    def setup(self):
+        self.colorbar = ColorBar(self.isocolor)
+
+        return widgets.VBox([self.colorbar], layout=widgets.Layout(margin='20px 0'))
 
 
 class TopoViz3d(VizApp):
@@ -141,19 +152,44 @@ class TopoViz3d(VizApp):
     def _redraw_canvas(self):
         self.components['canvas'].redraw_isocolor_warp()
 
+    def _reload_canvas(self):
+        self.canvas_output.clear_output()
+        with self.canvas_output:
+            display(self.canvas)
+
+    def _set_color_scale(self, log=False):
+        if log:
+            ctype = 'log'
+        else:
+            ctype = 'linear'
+
+        self.components['canvas'].isocolor.type = ctype
+
+        # TODO: ipygany 0.5.0 rescale color without reload?
+        self._reload_canvas()
+
     def _get_display_properties(self):
         props = {}
 
         coloring = Coloring(
             self.dataset,
+            colormaps=list(colormaps.keys()),
+            default_colormap='Viridis',
             canvas_callback_var=self._redraw_canvas,
             canvas_callback_range=self.components['canvas'].reset_isocolor_limits,
+            canvas_callback_scale=self._set_color_scale,
+        )
+        widgets.link(
+            (coloring.colormaps_dropdown, 'index'), (self.components['canvas'].isocolor, 'colormap')
         )
         widgets.link((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
         widgets.link((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
         widgets.jslink((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
         widgets.jslink((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
         props['coloring'] = coloring
+
+        colorbar = GanyColorbar(self.dataset, isocolor=self.components['canvas'].isocolor)
+        props['colobar'] = colorbar
 
         vert_exag = VerticalExaggeration(self.dataset, canvas_callback=self._update_warp_factor)
         props['vertical_exaggeration'] = vert_exag
@@ -164,3 +200,9 @@ class TopoViz3d(VizApp):
         props['background_color'] = bgcolor
 
         return props
+
+    def show(self):
+        super().show()
+
+        # FIXME: canvas not shown otherwise (ipygany 0.5.0)
+        self._reload_canvas()

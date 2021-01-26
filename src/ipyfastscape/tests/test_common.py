@@ -87,22 +87,40 @@ def test_timestepper(dataset_init):
 def test_coloring(dataset_init):
     counter_var, clb_var = counter_callback()
     counter_range, clb_range = counter_callback()
+    counter_scale, clb_scale = counter_callback()
 
-    coloring = Coloring(dataset_init, canvas_callback_var=clb_var, canvas_callback_range=clb_range)
+    coloring = Coloring(
+        dataset_init,
+        colormaps=['c1', 'c2'],
+        default_colormap='c1',
+        canvas_callback_var=clb_var,
+        canvas_callback_range=clb_range,
+        canvas_callback_scale=clb_scale,
+    )
 
     assert set(coloring.color_vars) == {'topography__elevation', 'other_var'}
     assert coloring.var_dropdown.value == 'topography__elevation'
     assert coloring.var_dropdown.options == coloring.color_vars
 
+    assert coloring.colormaps_dropdown.value == 'c1'
+    assert coloring.colormaps_dropdown.options == ('c1', 'c2')
+
     assert coloring.min_input.value == dataset_init['topography__elevation'].min()
     assert coloring.max_input.value == dataset_init['topography__elevation'].max()
 
-    # test changing dropdown
+    # test log scale checkbox
+    coloring.log_scale_checkbox.value = True
+    assert counter_scale['called'] == 1
+
+    # test changing var dropdown (should reset color scale)
     coloring.var_dropdown.value = 'other_var'
 
     assert dataset_init._widgets.color_var == 'other_var'
     assert counter_var['called'] == 1
     assert counter_range['called'] == 1
+
+    assert coloring.log_scale_checkbox.value is False
+    assert counter_scale['called'] == 2
 
     # test rescale buttons
     coloring.rescale_button.click()
@@ -118,9 +136,18 @@ def test_coloring(dataset_init):
     with pytest.raises(ValueError, match='Invalid variable name.*'):
         coloring.set_color_var('not_a_var')
 
+    coloring.set_colormap('c2')
+    assert coloring.colormaps_dropdown.value == 'c2'
+
+    with pytest.raises(ValueError, match='.*is not a valid colormap.*'):
+        coloring.set_colormap('not_a_colormap')
+
     coloring.set_color_limits(1, 2)
     assert coloring.min_input.value == 1
     assert coloring.max_input.value == 2
+
+    coloring.set_color_scale(log=True)
+    assert counter_scale['called'] == 3
 
 
 def test_viz_app_init(dataset):

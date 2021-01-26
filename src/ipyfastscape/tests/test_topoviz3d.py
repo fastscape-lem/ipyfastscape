@@ -32,11 +32,7 @@ def test_gany_scene(dataset_init):
     assert gany_scene.isocolor.min == dataset_init['topography__elevation'].min()
     assert gany_scene.isocolor.max == dataset_init['topography__elevation'].max()
 
-    assert gany_scene.linkable_traits == [
-        (gany_scene.scene, 'camera_position'),
-        (gany_scene.scene, 'camera_target'),
-        (gany_scene.scene, 'camera_up'),
-    ]
+    assert gany_scene.linkable_traits == [(gany_scene.scene, 'camera')]
 
 
 def test_topoviz3d(dataset):
@@ -56,6 +52,15 @@ def test_topoviz3d(dataset):
     topoviz3d.components['coloring'].set_color_var('other_var')
     assert topoviz3d.components['canvas'].isocolor.min == dataset['other_var'].min()
     assert topoviz3d.components['canvas'].isocolor.max == dataset['other_var'].max()
+
+    assert topoviz3d.components['canvas'].isocolor.colormap == 34  # Viridis
+    topoviz3d.components['coloring'].set_colormap('Cividis')
+    assert topoviz3d.components['canvas'].isocolor.colormap == 27  # Cividis
+
+    topoviz3d.components['coloring'].set_color_scale(log=True)
+    assert topoviz3d.components['canvas'].isocolor.type == 'log'
+    topoviz3d.components['coloring'].set_color_scale(log=False)
+    assert topoviz3d.components['canvas'].isocolor.type == 'linear'
 
     topoviz3d.components['background_color'].set_color('black')
     assert topoviz3d.canvas.background_color == 'black'
