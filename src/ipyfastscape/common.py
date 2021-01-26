@@ -206,7 +206,7 @@ class Coloring(AppComponent):
         self.var_dropdown.observe(lambda change: self._set_color_var(change['new']), names='value')
 
         self.colormaps_dropdown = widgets.Dropdown(
-            options=self.colormaps.keys(), value=self.default_colormap
+            options=self.colormaps, value=self.default_colormap
         )
 
         da = self.dataset._widgets.color
@@ -322,6 +322,21 @@ class Coloring(AppComponent):
 
         """
         self.log_scale_checkbox.value = log
+
+    def set_colormap(self, cm):
+        """Set colormap
+
+        Parameters
+        ----------
+        cm : str
+            One of the available colormaps. See the ``colormaps`` attribute for
+            a list of all available colormaps.
+
+        """
+        if cm not in self.colormaps:
+            raise ValueError(f'{cm} is not a valid colormap, must be one of {self.colormaps}')
+
+        self.colormaps_dropdown.value = cm
 
 
 class VizApp:
