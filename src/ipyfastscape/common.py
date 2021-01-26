@@ -235,7 +235,7 @@ class Coloring(AppComponent):
             value=False, indent=False, layout=widgets.Layout(width='100px'), description='log scale'
         )
         self.log_scale_checkbox.observe(
-            lambda change: self.set_color_scale(log=change['new']), names='value'
+            lambda change: self._set_color_scale(log=change['new']), names='value'
         )
 
         range_grid = widgets.GridspecLayout(3, 2)
@@ -307,6 +307,10 @@ class Coloring(AppComponent):
         if self.canvas_callback_range is not None:
             self.canvas_callback_range(step=step)
 
+    def _set_color_scale(self, log=False):
+        if self.canvas_callback_scale:
+            self.canvas_callback_scale(log=log)
+
     def set_color_scale(self, log=False):
         """Set color scale.
 
@@ -317,8 +321,7 @@ class Coloring(AppComponent):
             color scale (default).
 
         """
-        if self.canvas_callback_scale:
-            self.canvas_callback_scale(log=log)
+        self.log_scale_checkbox.value = log
 
 
 class VizApp:
