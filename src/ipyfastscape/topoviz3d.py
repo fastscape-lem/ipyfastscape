@@ -184,8 +184,6 @@ class TopoViz3d(VizApp):
         )
         widgets.link((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
         widgets.link((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
-        widgets.jslink((coloring.min_input, 'value'), (self.components['canvas'].isocolor, 'min'))
-        widgets.jslink((coloring.max_input, 'value'), (self.components['canvas'].isocolor, 'max'))
         props['coloring'] = coloring
 
         colorbar = GanyColorbar(self.dataset, isocolor=self.components['canvas'].isocolor)
