@@ -265,6 +265,9 @@ class Coloring(AppComponent):
     def _set_color_var(self, var_name):
         self.dataset._widgets.color_var = var_name
 
+        # reset color scale
+        self.log_scale_checkbox.value = False
+
         if self.canvas_callback_var is not None:
             self.canvas_callback_var()
         if self.canvas_callback_range is not None:
