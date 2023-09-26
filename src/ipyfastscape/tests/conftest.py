@@ -23,11 +23,11 @@ def dataset() -> xr.Dataset:
 
     ds = xr.Dataset(
         data_vars={
-            'topography__elevation': (('batch', 'time', 'y', 'x'), elevation),
-            'other_var': (('batch', 'time', 'y', 'x'), other_var),
-            'xy_var': (('y', 'x'), xy_var),
+            "topography__elevation": (("batch", "time", "y", "x"), elevation),
+            "other_var": (("batch", "time", "y", "x"), other_var),
+            "xy_var": (("y", "x"), xy_var),
         },
-        coords={'batch': batch, 'time': time, 'y': y, 'x': x},
+        coords={"batch": batch, "time": time, "y": y, "x": x},
     )
 
     return ds
@@ -35,6 +35,6 @@ def dataset() -> xr.Dataset:
 
 @pytest.fixture
 def dataset_init(dataset) -> xr.Dataset:
-    dataset._widgets(time_dim='time')
+    dataset._widgets(time_dim="time")
 
     return dataset

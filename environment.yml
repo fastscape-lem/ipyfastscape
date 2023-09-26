@@ -1,0 +1,10 @@
+name: ipyfastscape-dev
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.9
+  - xarray
+  - ipygany>=0.5.0
+  - ipywidgets
+  - pytest
+  - pip
