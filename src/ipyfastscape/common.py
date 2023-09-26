@@ -42,7 +42,7 @@ class DimensionExplorer(AppComponent):
 
     """
 
-    name = 'Dimensions'
+    name = "Dimensions"
 
     def __init__(self, *args, canvas_callback: Callable = None):
         self.canvas_callback = canvas_callback
@@ -57,10 +57,9 @@ class DimensionExplorer(AppComponent):
         extra_dims_sizes = self.dataset._widgets.extra_dims_sizes
 
         for dim in self.dataset._widgets.extra_dims:
-
             for n in extra_dims_names[dim]:
-                name_label = widgets.Label(f'{n}: ')
-                value_label = widgets.Label('')
+                name_label = widgets.Label(f"{n}: ")
+                value_label = widgets.Label("")
 
                 self.value_labels[dim].append(value_label)
                 vbox_elements.append(widgets.HBox([name_label, value_label]))
@@ -72,18 +71,18 @@ class DimensionExplorer(AppComponent):
                 readout=False,
                 continuous_update=False,
             )
-            slider.layout = widgets.Layout(width='95%')
+            slider.layout = widgets.Layout(width="95%")
             slider.observe(self._update_explorer)
             self.sliders[dim] = slider
             vbox_elements.append(slider)
 
         self._update_value_labels()
 
-        return widgets.VBox(vbox_elements, layout=widgets.Layout(width='100%'))
+        return widgets.VBox(vbox_elements, layout=widgets.Layout(width="100%"))
 
     @property
     def linkable_traits(self):
-        return [(sl, 'value') for sl in self.sliders.values()]
+        return [(sl, "value") for sl in self.sliders.values()]
 
     def _update_value_labels(self):
         extra_dims_fmt = self.dataset._widgets.extra_dims_fmt
@@ -105,7 +104,7 @@ class DimensionExplorer(AppComponent):
 class TimeStepper(AppComponent):
     """Provides animation controls for temporal or other iterative data."""
 
-    name = 'Steps'
+    name = "Steps"
 
     def __init__(self, *args, canvas_callback: Callable = None):
         self.canvas_callback = canvas_callback
@@ -115,45 +114,49 @@ class TimeStepper(AppComponent):
         nsteps = self.dataset._widgets.nsteps
 
         self.label = widgets.Label(self.dataset._widgets.current_time_fmt)
-        self.label.layout = widgets.Layout(width='150px')
+        self.label.layout = widgets.Layout(width="150px")
 
         self.slider = widgets.IntSlider(value=0, min=0, max=nsteps - 1, readout=False)
-        self.slider.layout = widgets.Layout(width='auto', flex='3 1 0%')
-        self.slider.observe(self._update_step, names='value')
+        self.slider.layout = widgets.Layout(width="auto", flex="3 1 0%")
+        self.slider.observe(self._update_step, names="value")
 
         self.play = widgets.Play(value=0, min=0, max=nsteps - 1, interval=100)
 
         self.play_speed = widgets.IntSlider(value=30, min=0, max=50, readout=False)
-        self.play_speed.layout = widgets.Layout(width='auto', flex='1 1 0%')
-        self.play_speed.observe(self._update_play_speed, names='value')
+        self.play_speed.layout = widgets.Layout(width="auto", flex="1 1 0%")
+        self.play_speed.observe(self._update_play_speed, names="value")
 
-        widgets.jslink((self.play, 'value'), (self.slider, 'value'))
+        widgets.jslink((self.play, "value"), (self.slider, "value"))
 
         return widgets.HBox(
             [
                 self.play,
-                widgets.Label('slow/fast: '),
+                widgets.Label("slow/fast: "),
                 self.play_speed,
-                widgets.Label('steps: '),
+                widgets.Label("steps: "),
                 self.slider,
                 self.label,
             ],
-            layout=widgets.Layout(width='100%'),
+            layout=widgets.Layout(width="100%", overflow="hidden"),
         )
 
     @property
     def linkable_traits(self):
-        return [(self.slider, 'value'), (self.play, 'value'), (self.play_speed, 'value')]
+        return [
+            (self.slider, "value"),
+            (self.play, "value"),
+            (self.play_speed, "value"),
+        ]
 
     def _update_step(self, change):
-        self.dataset._widgets.timestep = change['new']
+        self.dataset._widgets.timestep = change["new"]
         self.label.value = self.dataset._widgets.current_time_fmt
 
         if self.canvas_callback is not None:
             self.canvas_callback()
 
     def _update_play_speed(self, change):
-        speed_ms = int((520 + 500 * math.cos(change['new'] * math.pi / 50)) / 2)
+        speed_ms = int((520 + 500 * math.cos(change["new"] * math.pi / 50)) / 2)
         self.play.interval = speed_ms
 
     def go_to_step(self, step):
@@ -174,13 +177,13 @@ class Coloring(AppComponent):
     """Provides controls for colored data (e.g., heatmap, isocolor)."""
 
     allow_link = False
-    name = 'Coloring'
+    name = "Coloring"
 
     def __init__(
         self,
         *args,
         colormaps: Optional[List[str]] = None,
-        default_colormap: str = '',
+        default_colormap: str = "",
         canvas_callback_var: Callable = None,
         canvas_callback_range: Callable = None,
         canvas_callback_scale: Callable = None,
@@ -203,7 +206,9 @@ class Coloring(AppComponent):
             value=self.dataset._widgets.elevation_var,
             options=list(self.color_vars),
         )
-        self.var_dropdown.observe(lambda change: self._set_color_var(change['new']), names='value')
+        self.var_dropdown.observe(
+            lambda change: self._set_color_var(change["new"]), names="value"
+        )
 
         self.colormaps_dropdown = widgets.Dropdown(
             options=self.colormaps, value=self.default_colormap
@@ -211,31 +216,36 @@ class Coloring(AppComponent):
 
         da = self.dataset._widgets.color
         self.min_input = widgets.FloatText(
-            value=da.min(), layout=widgets.Layout(height='auto', width='auto')
+            value=da.min(),
+            layout=widgets.Layout(height="auto", width="auto", min_width="0"),
         )
         self.max_input = widgets.FloatText(
-            value=da.max(), layout=widgets.Layout(height='auto', width='auto')
+            value=da.max(),
+            layout=widgets.Layout(height="auto", width="auto", min_width="0"),
         )
 
         self.rescale_button = widgets.Button(
-            description='Rescale',
-            tooltip='Rescale to actual data range',
-            layout=widgets.Layout(height='auto', width='auto'),
+            description="Rescale",
+            tooltip="Rescale to actual data range",
+            layout=widgets.Layout(height="auto", width="auto"),
         )
         self.rescale_button.on_click(lambda _: self.reset_color_limits())
 
         self.rescale_step_button = widgets.Button(
-            description='Rescale Step',
-            tooltip='Rescale to actual data range (current step)',
-            layout=widgets.Layout(height='auto', width='auto'),
+            description="Rescale Step",
+            tooltip="Rescale to actual data range (current step)",
+            layout=widgets.Layout(height="auto", width="auto"),
         )
         self.rescale_step_button.on_click(lambda _: self.reset_color_limits(step=True))
 
         self.log_scale_checkbox = widgets.Checkbox(
-            value=False, indent=False, layout=widgets.Layout(width='100px'), description='log scale'
+            value=False,
+            indent=False,
+            layout=widgets.Layout(width="100px"),
+            description="log scale",
         )
         self.log_scale_checkbox.observe(
-            lambda change: self._set_color_scale(log=change['new']), names='value'
+            lambda change: self._set_color_scale(log=change["new"]), names="value"
         )
 
         range_grid = widgets.GridspecLayout(3, 2)
@@ -248,11 +258,11 @@ class Coloring(AppComponent):
 
         return widgets.VBox(
             [
-                widgets.Label('Coloring:'),
+                widgets.Label("Coloring:"),
                 self.var_dropdown,
-                widgets.Label('Colormap:'),
+                widgets.Label("Colormap:"),
                 self.colormaps_dropdown,
-                widgets.Label('Color range / scale:'),
+                widgets.Label("Color range / scale:"),
                 range_grid,
             ]
         )
@@ -284,7 +294,9 @@ class Coloring(AppComponent):
 
         """
         if var_name not in self.color_vars:
-            raise ValueError(f'Invalid variable name {var_name}, must be one of {self.color_vars}')
+            raise ValueError(
+                f"Invalid variable name {var_name}, must be one of {self.color_vars}"
+            )
 
         self.var_dropdown.value = var_name
 
@@ -334,7 +346,9 @@ class Coloring(AppComponent):
 
         """
         if cm not in self.colormaps:
-            raise ValueError(f'{cm} is not a valid colormap, must be one of {self.colormaps}')
+            raise ValueError(
+                f"{cm} is not a valid colormap, must be one of {self.colormaps}"
+            )
 
         self.colormaps_dropdown.value = cm
 
@@ -372,9 +386,9 @@ class VizApp:
     def load_dataset(
         self,
         dataset: xr.Dataset,
-        x_dim: str = 'x',
-        y_dim: str = 'y',
-        elevation_var: str = 'topography__elevation',
+        x_dim: str = "x",
+        y_dim: str = "y",
+        elevation_var: str = "topography__elevation",
         time_dim: Optional[str] = None,
     ):
         """Load a new dataset and reset the application.
@@ -402,9 +416,10 @@ class VizApp:
 
         """
         if not isinstance(dataset, xr.Dataset):
-            raise TypeError(f'{dataset} is not a xarray.Dataset object')
+            raise TypeError(f"{dataset} is not a xarray.Dataset object")
 
-        # shallow copy of dataset to support multiple VizApp instances using the same dataset
+        # shallow copy of dataset to support multiple VizApp instances
+        # using the same dataset
         self.dataset = dataset.copy()
         self.dataset._widgets(
             x_dim=x_dim, y_dim=y_dim, elevation_var=elevation_var, time_dim=time_dim
@@ -433,8 +448,8 @@ class VizApp:
         # the workaround below is a hack (force change with before back to 100%)
         self.canvas_output.clear_output()
 
-        self.canvas_output.layout.width = 'auto'
-        self.canvas_output.layout.width = '100%'
+        self.canvas_output.layout.width = "auto"
+        self.canvas_output.layout.width = "100%"
 
         with self.canvas_output:
             display(self.canvas)
@@ -453,20 +468,20 @@ class VizApp:
             # add margin + header
             output_height += 10 + 30
 
-        self._output.layout = widgets.Layout(height=str(output_height) + 'px')
+        self._output.layout = widgets.Layout(height=str(output_height) + "px")
 
-        self.components['canvas'] = self._reset_canvas()
+        self.components["canvas"] = self._reset_canvas()
         self.canvas.layout = widgets.Layout(
-            width='100%',
-            height=str(self._canvas_height) + 'px',
-            overflow='hidden',
+            width="100%",
+            height=str(self._canvas_height) + "px",
+            overflow="hidden",
         )
         self.canvas_output.layout = widgets.Layout(
-            width='100%',
-            height=str(self._canvas_height) + 'px',
-            overflow='hidden',
-            margin='0',
-            border='solid 1px #bbb',
+            width="100%",
+            height=str(self._canvas_height) + "px",
+            overflow="hidden",
+            margin="0",
+            border="solid 1px #bbb",
         )
 
         # header
@@ -474,16 +489,16 @@ class VizApp:
 
         menu_button = widgets.ToggleButton(
             value=True,
-            tooltip='Show/Hide sidebar',
-            icon='bars',
-            layout=widgets.Layout(width='50px', height='auto', margin='0 10px 0 0'),
+            tooltip="Show/Hide sidebar",
+            icon="bars",
+            layout=widgets.Layout(width="50px", height="auto", margin="0 10px 0 0"),
         )
 
         header_elements.append(menu_button)
 
         if self.dataset._widgets.time_dim is not None:
             timestepper = TimeStepper(self.dataset, canvas_callback=self._redraw_canvas)
-            self.components['timestepper'] = timestepper
+            self.components["timestepper"] = timestepper
             header_elements.append(timestepper.widget)
 
         # left pane
@@ -491,16 +506,20 @@ class VizApp:
         accordion_titles = []
 
         if len(self.dataset._widgets.extra_dims):
-            dim_explorer = DimensionExplorer(self.dataset, canvas_callback=self._redraw_canvas)
-            self.components['dimensions'] = dim_explorer
+            dim_explorer = DimensionExplorer(
+                self.dataset, canvas_callback=self._redraw_canvas
+            )
+            self.components["dimensions"] = dim_explorer
             accordion_elements.append(dim_explorer.widget)
-            accordion_titles.append('Dimensions')
+            accordion_titles.append("Dimensions")
 
         display_properties = self._get_display_properties()
         self.components.update(display_properties)
-        display_properties_box = widgets.VBox([dp.widget for dp in display_properties.values()])
+        display_properties_box = widgets.VBox(
+            [dp.widget for dp in display_properties.values()]
+        )
         accordion_elements.append(display_properties_box)
-        accordion_titles.append('Display properties')
+        accordion_titles.append("Display properties")
 
         left_pane = widgets.Accordion(accordion_elements)
 
@@ -508,21 +527,21 @@ class VizApp:
             left_pane.set_title(pos, title)
 
         left_pane.layout = widgets.Layout(
-            width='400px',
-            height='95%',
-            margin='0 10px 0 0',
-            flex='0 0 auto',
+            width="400px",
+            height="95%",
+            margin="0 10px 0 0",
+            flex="0 0 auto",
         )
 
         def toggle_left_pane(change):
-            if change['new']:
-                left_pane.layout.display = 'block'
+            if change["new"]:
+                left_pane.layout.display = "block"
                 self._resize_canvas()
             else:
-                left_pane.layout.display = 'none'
+                left_pane.layout.display = "none"
                 self._resize_canvas()
 
-        menu_button.observe(toggle_left_pane, names='value')
+        menu_button.observe(toggle_left_pane, names="value")
 
         with self._canvas_output:
             display(self.canvas)
@@ -534,10 +553,9 @@ class VizApp:
             right_sidebar=None,
             center=widgets.HBox([left_pane, self._canvas_output]),
             footer=None,
-            pane_heights=['30px', str(self._canvas_height) + 'px', 0],
-            grid_gap='10px',
-            width='100%',
-            overflow='hidden',
+            pane_heights=["30px", str(self._canvas_height) + "px", 0],
+            grid_gap="10px",
+            width="100%",
         )
 
         with self._output:
@@ -577,13 +595,13 @@ class AppLinker:
 
         """
         if not all([isinstance(app, VizApp) for app in apps]):
-            raise TypeError('`app` argument only accepts VizApp objects')
+            raise TypeError("`app` argument only accepts VizApp objects")
 
         if len(apps) < 2:
-            raise ValueError('AppLinker works with at least two VizApp objects')
+            raise ValueError("AppLinker works with at least two VizApp objects")
 
         if len(set(apps)) < len(apps):
-            raise ValueError('AppLinker works with distinct VizApp objects')
+            raise ValueError("AppLinker works with distinct VizApp objects")
 
         self._apps = apps
         self._link_client = link_client
@@ -597,7 +615,7 @@ class AppLinker:
         link_objs = []
 
         def on_click(change):
-            if change['new']:
+            if change["new"]:
                 for c in comps:
                     for source, target in zip(c0.linkable_traits, c.linkable_traits):
                         if self._link_client:
@@ -611,28 +629,32 @@ class AppLinker:
 
         return on_click
 
-    def _create_linker_button(self, comp_name: str) -> Union[widgets.ToggleButton, None]:
+    def _create_linker_button(
+        self, comp_name: str
+    ) -> Union[widgets.ToggleButton, None]:
         comp_objs = [app.components[comp_name] for app in self._apps]
 
         comp_cls = type(comp_objs[0])
-        allow_link = getattr(comp_cls, 'allow_link', False)
+        allow_link = getattr(comp_cls, "allow_link", False)
         same_type = all([isinstance(obj, comp_cls) for obj in comp_objs])
 
         if not allow_link or not same_type:
             return None
 
-        layout = widgets.Layout(width='200px')
+        layout = widgets.Layout(width="200px")
         button = widgets.ToggleButton(
-            value=False, description=f'Link {comp_cls.name}', layout=layout
+            value=False, description=f"Link {comp_cls.name}", layout=layout
         )
-        button.observe(self._linker_button_observe_factory(comp_objs), names='value')
+        button.observe(self._linker_button_observe_factory(comp_objs), names="value")
 
         return button
 
     def setup(self):
         app_components = set().union(*[app.components for app in self._apps])
 
-        buttons = [self._create_linker_button(comp_name) for comp_name in app_components]
+        buttons = [
+            self._create_linker_button(comp_name) for comp_name in app_components
+        ]
         self.buttons = [b for b in buttons if b is not None]
 
         return widgets.HBox(self.buttons)
