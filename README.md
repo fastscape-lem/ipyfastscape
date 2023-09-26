@@ -1,5 +1,5 @@
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/fastscape-lem/fastscape-demo/master?urlpath=lab/tree/ipyfastscape)
-[![Tests](https://github.com/fastscape-lem/ipyfastscape/workflows/tests.yml/badge.svg)](https://github.com/fastscape-lem/ipyfastscape/actions)
+[![Tests](https://github.com/fastscape-lem/ipyfastscape/actions/workflows/tests.yml/badge.svg)](https://github.com/fastscape-lem/ipyfastscape/actions)
 
 # Ipyfastscape
 
