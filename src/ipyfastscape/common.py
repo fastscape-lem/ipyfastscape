@@ -445,7 +445,7 @@ class VizApp:
 
     def _resize_canvas(self):
         # TODO: proper canvas resizing
-        # the workaround below is a hack (force change with before back to 100%)
+        # the workaround below is a hack (force change width before back to 100%)
         self.canvas_output.clear_output()
 
         self.canvas_output.layout.width = "auto"
@@ -548,7 +548,9 @@ class VizApp:
 
         # app
         app = widgets.AppLayout(
-            header=widgets.HBox(header_elements),
+            header=widgets.HBox(
+                header_elements, layout=widgets.Layout(overflow="visible")
+            ),
             left_sidebar=None,
             right_sidebar=None,
             center=widgets.HBox([left_pane, self._canvas_output]),

@@ -192,14 +192,14 @@ class WidgetsAccessor:
     def current_color(self) -> xr.DataArray:
         return self.view_step[self.color_var]
 
-    def to_unstructured_mesh(self) -> Tuple[np.ndarray, np.ndarray]:
-        x = self._dataset[self.x_dim]
-        y = self._dataset[self.y_dim]
+    def to_unstructured_mesh(self, scale_factor=0.1) -> Tuple[np.ndarray, np.ndarray]:
+        x = self._dataset[self.x_dim] * scale_factor
+        y = self._dataset[self.y_dim] * scale_factor
 
         nr = len(y)
         nc = len(x)
 
-        triangle_indices = np.empty((nr - 1, nc - 1, 2, 3), dtype="uint32")
+        triangle_indices = np.empty((nr - 1, nc - 1, 2, 3), dtype="int64")
 
         r = np.arange(nr * nc).reshape(nr, nc)
 
