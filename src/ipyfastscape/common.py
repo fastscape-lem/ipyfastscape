@@ -1,6 +1,6 @@
 import math
 from collections import defaultdict
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import ipywidgets as widgets
 import xarray as xr
@@ -32,7 +32,7 @@ class AppComponent:
         return self._widget
 
     @property
-    def linkable_traits(self) -> List[Tuple[widgets.Widget, str]]:
+    def linkable_traits(self) -> list[tuple[widgets.Widget, str]]:
         return []
 
 
@@ -182,7 +182,7 @@ class Coloring(AppComponent):
     def __init__(
         self,
         *args,
-        colormaps: Optional[List[str]] = None,
+        colormaps: Optional[list[str]] = None,
         default_colormap: str = "",
         canvas_callback_var: Callable = None,
         canvas_callback_range: Callable = None,
@@ -206,9 +206,7 @@ class Coloring(AppComponent):
             value=self.dataset._widgets.elevation_var,
             options=list(self.color_vars),
         )
-        self.var_dropdown.observe(
-            lambda change: self._set_color_var(change["new"]), names="value"
-        )
+        self.var_dropdown.observe(lambda change: self._set_color_var(change["new"]), names="value")
 
         self.colormaps_dropdown = widgets.Dropdown(
             options=self.colormaps, value=self.default_colormap
@@ -268,7 +266,7 @@ class Coloring(AppComponent):
         )
 
     @property
-    def color_vars(self) -> Tuple[str]:
+    def color_vars(self) -> tuple[str]:
         """Returns all possible color variables."""
         return tuple(self.dataset._widgets.data_vars)
 
@@ -294,9 +292,7 @@ class Coloring(AppComponent):
 
         """
         if var_name not in self.color_vars:
-            raise ValueError(
-                f"Invalid variable name {var_name}, must be one of {self.color_vars}"
-            )
+            raise ValueError(f"Invalid variable name {var_name}, must be one of {self.color_vars}")
 
         self.var_dropdown.value = var_name
 
@@ -346,9 +342,7 @@ class Coloring(AppComponent):
 
         """
         if cm not in self.colormaps:
-            raise ValueError(
-                f"{cm} is not a valid colormap, must be one of {self.colormaps}"
-            )
+            raise ValueError(f"{cm} is not a valid colormap, must be one of {self.colormaps}")
 
         self.colormaps_dropdown.value = cm
 
@@ -357,7 +351,7 @@ class VizApp:
     """Base class for ipyfastscape's visualization apps."""
 
     dataset: Optional[xr.Dataset]
-    components: Dict[str, AppComponent]
+    components: dict[str, AppComponent]
 
     def __init__(self, dataset: xr.Dataset = None, canvas_height: int = 600, **kwargs):
         """
@@ -454,7 +448,7 @@ class VizApp:
         with self.canvas_output:
             display(self.canvas)
 
-    def _get_display_properties(self) -> Dict[str, AppComponent]:
+    def _get_display_properties(self) -> dict[str, AppComponent]:
         return {}
 
     def reset_app(self):
@@ -506,18 +500,14 @@ class VizApp:
         accordion_titles = []
 
         if len(self.dataset._widgets.extra_dims):
-            dim_explorer = DimensionExplorer(
-                self.dataset, canvas_callback=self._redraw_canvas
-            )
+            dim_explorer = DimensionExplorer(self.dataset, canvas_callback=self._redraw_canvas)
             self.components["dimensions"] = dim_explorer
             accordion_elements.append(dim_explorer.widget)
             accordion_titles.append("Dimensions")
 
         display_properties = self._get_display_properties()
         self.components.update(display_properties)
-        display_properties_box = widgets.VBox(
-            [dp.widget for dp in display_properties.values()]
-        )
+        display_properties_box = widgets.VBox([dp.widget for dp in display_properties.values()])
         accordion_elements.append(display_properties_box)
         accordion_titles.append("Display properties")
 
@@ -548,9 +538,7 @@ class VizApp:
 
         # app
         app = widgets.AppLayout(
-            header=widgets.HBox(
-                header_elements, layout=widgets.Layout(overflow="visible")
-            ),
+            header=widgets.HBox(header_elements, layout=widgets.Layout(overflow="visible")),
             left_sidebar=None,
             right_sidebar=None,
             center=widgets.HBox([left_pane, self._canvas_output]),
@@ -582,7 +570,7 @@ class AppLinker:
 
     """
 
-    def __init__(self, apps: List[VizApp], link_client=True, link_server=False):
+    def __init__(self, apps: list[VizApp], link_client=True, link_server=False):
         """
 
         Parameters
@@ -610,7 +598,7 @@ class AppLinker:
         self._link_server = link_server
         self._widget = self.setup()
 
-    def _linker_button_observe_factory(self, comp_objs: List[AppComponent]) -> Callable:
+    def _linker_button_observe_factory(self, comp_objs: list[AppComponent]) -> Callable:
         c0 = comp_objs[0]
         comps = comp_objs[1:]
 
@@ -631,9 +619,7 @@ class AppLinker:
 
         return on_click
 
-    def _create_linker_button(
-        self, comp_name: str
-    ) -> Union[widgets.ToggleButton, None]:
+    def _create_linker_button(self, comp_name: str) -> Union[widgets.ToggleButton, None]:
         comp_objs = [app.components[comp_name] for app in self._apps]
 
         comp_cls = type(comp_objs[0])
@@ -654,9 +640,7 @@ class AppLinker:
     def setup(self):
         app_components = set().union(*[app.components for app in self._apps])
 
-        buttons = [
-            self._create_linker_button(comp_name) for comp_name in app_components
-        ]
+        buttons = [self._create_linker_button(comp_name) for comp_name in app_components]
         self.buttons = [b for b in buttons if b is not None]
 
         return widgets.HBox(self.buttons)

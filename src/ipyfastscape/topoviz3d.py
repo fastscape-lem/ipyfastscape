@@ -90,9 +90,7 @@ class GanyScene(AppComponent):
         elev_arr = self.dataset._widgets.current_elevation.values
 
         data = {
-            "color": [
-                Component(name="clr_value", array=elev_arr, min=elev_min, max=elev_max)
-            ],
+            "color": [Component(name="clr_value", array=elev_arr, min=elev_min, max=elev_max)],
             "warp": [
                 Component(
                     name="warp_value",
@@ -103,9 +101,7 @@ class GanyScene(AppComponent):
             ],
         }
 
-        self.polymesh = PolyMesh(
-            vertices=vertices, triangle_indices=triangle_indices, data=data
-        )
+        self.polymesh = PolyMesh(vertices=vertices, triangle_indices=triangle_indices, data=data)
         self.isocolor = IsoColor(
             self.polymesh, input=("color", "clr_value"), min=elev_min, max=elev_max
         )
@@ -116,9 +112,7 @@ class GanyScene(AppComponent):
 
     def redraw_isocolor_warp(self):
         """Trigger scene redraw if data slice has been updated."""
-        new_warp_array = (
-            self.dataset._widgets.current_elevation.values * self.scale_factor
-        )
+        new_warp_array = self.dataset._widgets.current_elevation.values * self.scale_factor
         new_color_array = self.dataset._widgets.current_color.values
 
         with self.scene.hold_sync():
@@ -208,22 +202,14 @@ class TopoViz3d(VizApp):
             (coloring.colormaps_dropdown, "index"),
             (self.components["canvas"].isocolor, "colormap"),
         )
-        widgets.link(
-            (coloring.min_input, "value"), (self.components["canvas"].isocolor, "min")
-        )
-        widgets.link(
-            (coloring.max_input, "value"), (self.components["canvas"].isocolor, "max")
-        )
+        widgets.link((coloring.min_input, "value"), (self.components["canvas"].isocolor, "min"))
+        widgets.link((coloring.max_input, "value"), (self.components["canvas"].isocolor, "max"))
         props["coloring"] = coloring
 
-        colorbar = GanyColorbar(
-            self.dataset, isocolor=self.components["canvas"].isocolor
-        )
+        colorbar = GanyColorbar(self.dataset, isocolor=self.components["canvas"].isocolor)
         props["colobar"] = colorbar
 
-        vert_exag = VerticalExaggeration(
-            self.dataset, canvas_callback=self._update_warp_factor
-        )
+        vert_exag = VerticalExaggeration(self.dataset, canvas_callback=self._update_warp_factor)
         props["vertical_exaggeration"] = vert_exag
 
         bgcolor = BackgroundColor(self.dataset)
