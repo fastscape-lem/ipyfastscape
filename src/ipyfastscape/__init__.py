@@ -1,10 +1,13 @@
-from pkg_resources import DistributionNotFound, get_distribution
+from importlib.metadata import PackageNotFoundError, version
 
-from .common import AppLinker  # noqa: F401
-from .topoviz3d import TopoViz3d  # noqa: F401
+from .common import AppLinker
+from .topoviz3d import TopoViz3d
 
 try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:  # noqa: F401; pragma: no cover
+    __version__ = version("ipyfastscape")
+except PackageNotFoundError:  # noqa
     # package is not installed
     pass
+
+
+__all__ = ("AppLinker", "TopoViz3d", "__version__")
