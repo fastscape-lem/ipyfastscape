@@ -39,16 +39,3 @@ or using pip:
 ``` sh
 $ python -m pip install ipyfastscape
 ```
-
-If you use jupyterlab (2.x), you also need to install some extensions:
-
-``` sh
-$ jupyter labextension install @jupyter-widgets/jupyterlab-manager ipygany
-```
-
-If you installed ipyfastscape using pip and you are using jupyter's "classic"
-notebook, you need to enable those extensions:
-
-``` sh
-$ jupyter nbextension enable --py --sys-prefix ipygany
-```
