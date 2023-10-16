@@ -19,12 +19,21 @@ class WidgetsAccessor:
         self._timestep = 0
         self._extra_dims = None
 
-    def __call__(self, x_dim="x", y_dim="y", time_dim=None, elevation_var="topography__elevation"):
+    def __call__(
+        self,
+        x_dim="x",
+        y_dim="y",
+        time_dim=None,
+        elevation_var="topography__elevation",
+        triangles_var="triangles",
+    ):
         if elevation_var not in self._dataset:
             raise ValueError(f"variable '{elevation_var}' not found in Dataset")
 
         elevation_da = self._dataset[elevation_var]
         elevation_dims = set(elevation_da.dims)
+
+        self.triangles_var = None
 
         if time_dim is not None:
             if time_dim not in self._dataset.coords:
@@ -35,7 +44,23 @@ class WidgetsAccessor:
         if x_dim not in self._dataset.coords or y_dim not in self._dataset.coords:
             raise ValueError(f"coordinate(s) '{x_dim}' and/or '{y_dim}' missing in Dataset")
 
-        if x_dim not in elevation_dims or y_dim not in elevation_dims:
+        x_coord_dims = set(self._dataset[x_dim].dims)
+        y_coord_dims = set(self._dataset[y_dim].dims)
+
+        if len(x_coord_dims) == 1 and x_coord_dims == y_coord_dims:
+            # trimesh case
+            if not x_coord_dims.issubset(elevation_dims):
+                raise ValueError(
+                    "detected triangular mesh from x,y coordinate dimensions but"
+                    f"variable {elevation_var!r} has incompatible dimensions"
+                )
+            if triangles_var not in self._dataset.variables:
+                raise ValueError(
+                    "detected triangular mesh from x,y coordinate dimensions but"
+                    f"triangle indices variable {triangles_var!r} not found"
+                )
+            self.triangles_var = triangles_var
+        elif x_dim not in elevation_dims or y_dim not in elevation_dims:
             raise ValueError(f"variable '{elevation_var}' has no '{x_dim}' or '{y_dim}' dimension")
 
         self.elevation_var = elevation_var
@@ -45,7 +70,7 @@ class WidgetsAccessor:
 
         self.time_dim = time_dim
 
-        extra_dim_keys = elevation_dims - {x_dim, y_dim, time_dim}
+        extra_dim_keys = elevation_dims - {x_dim, y_dim, time_dim} - x_coord_dims
         self._extra_dims = {dim: 0 for dim in extra_dim_keys}
 
         return self
@@ -178,7 +203,7 @@ class WidgetsAccessor:
     def current_color(self) -> xr.DataArray:
         return self.view_step[self.color_var]
 
-    def to_unstructured_mesh(self, scale_factor=0.1) -> tuple[np.ndarray, np.ndarray]:
+    def _to_unstructured_mesh_raster(self, scale_factor) -> tuple[np.ndarray, np.ndarray]:
         x = self._dataset[self.x_dim] * scale_factor
         y = self._dataset[self.y_dim] * scale_factor
 
@@ -208,3 +233,24 @@ class WidgetsAccessor:
         vertices = vertices.reshape(nr * nc, 3)
 
         return vertices, triangle_indices
+
+    def _to_unstructured_mesh_tri(self, scale_factor) -> tuple[np.ndarray, np.ndarray]:
+        x = self._dataset[self.x_dim] * scale_factor
+        y = self._dataset[self.y_dim] * scale_factor
+
+        nnodes = len(x)
+        if len(x) != len(y):
+            raise ValueError("x and y coordinates have different sizes")
+
+        vertices = np.empty((nnodes, 3))
+        vertices[:, 0] = x
+        vertices[:, 1] = y
+        vertices[:, 2] = np.zeros_like(x)
+
+        return vertices, self._dataset[self.triangles_var]
+
+    def to_unstructured_mesh(self, scale_factor=0.1) -> tuple[np.ndarray, np.ndarray]:
+        if self.triangles_var is None:
+            return self._to_unstructured_mesh_raster(scale_factor)
+        else:
+            return self._to_unstructured_mesh_tri(scale_factor)
